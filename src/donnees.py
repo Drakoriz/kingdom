@@ -54,6 +54,42 @@ def butin_lieux() -> pd.DataFrame:
     return charger_feuille("Location Loot")
 
 
+def objets() -> pd.DataFrame:
+    return charger_feuille("Items")
+
+
+def outils() -> pd.DataFrame:
+    return charger_feuille("Tools")
+
+
+def consommables() -> pd.DataFrame:
+    return charger_feuille("Consumables")
+
+
+def recettes() -> pd.DataFrame:
+    return charger_feuille("Recipes")
+
+
+def ingredients_recettes() -> pd.DataFrame:
+    return charger_feuille("Recipe Ingredients")
+
+
+def paliers_metiers() -> pd.DataFrame:
+    return charger_feuille("Job Unlocks")
+
+
+def pvp_competences() -> pd.DataFrame:
+    return charger_feuille("PvP Skills")
+
+
+def pvp_passifs() -> pd.DataFrame:
+    return charger_feuille("PvP Passives")
+
+
+def pvp_equipements() -> pd.DataFrame:
+    return charger_feuille("PvP Equip Items")
+
+
 def lieux_equipe() -> pd.DataFrame:
     df = lieux()
     return df[df["regionId"] == REGION_EQUIPE]

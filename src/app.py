@@ -2,14 +2,15 @@
 import streamlit as st
 
 import donnees as d
+import wiki
 
 st.set_page_config(page_title="Team Verte — KINGDOM", page_icon="🟢", layout="wide")
 
 st.title("🟢 Team Verte — Maison III")
 st.caption("Tableau de bord stratégique pour l'équipe, basé sur les données du Royaume.")
 
-onglet_info, onglet_strategie, onglet_profils = st.tabs(
-    ["ℹ️ Info", "🧭 Stratégie", "👥 Profils de l'équipe"]
+onglet_info, onglet_strategie, onglet_profils, onglet_wiki = st.tabs(
+    ["ℹ️ Info", "🧭 Stratégie", "👥 Profils de l'équipe", "📖 Wiki"]
 )
 
 # ---------------------------------------------------------------- Info
@@ -183,3 +184,9 @@ with onglet_profils:
     if st.button("💾 Enregistrer les profils", type="primary"):
         d.sauvegarder_profils(profils_modifies)
         st.success(f"{len(profils_modifies)} profil(s) enregistré(s).")
+
+# ---------------------------------------------------------------- Wiki
+with onglet_wiki:
+    st.header("Wiki du Royaume")
+    st.caption("Référence complète : objets, recettes, lieux, classes et PvP.")
+    wiki.afficher()
