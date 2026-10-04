@@ -34,7 +34,7 @@ with onglet_info:
                 columns={"emoji": "", "name": "Classe", "description": "Description"}
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
     with col2:
         st.subheader("Métiers")
@@ -43,7 +43,7 @@ with onglet_info:
                 columns={"emoji": "", "name": "Métier", "type": "Type", "description": "Description"}
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
     st.subheader("Les 4 Maisons du Royaume")
@@ -56,7 +56,7 @@ with onglet_info:
             }
         )[["Maison", "Région", "Code région"]],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     st.subheader("Nos 4 lieux (Maison III, région Verte)")
@@ -67,7 +67,7 @@ with onglet_info:
             columns={"emoji": "", "name": "Lieu", "activityLabel": "Activité", "description": "Description"}
         ),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
     st.caption(
         "⚠️ La Tourbière des Damnés est maudite : non accessible pour l'instant (contenu futur)."
@@ -79,7 +79,7 @@ with onglet_info:
             columns={"emoji": "", "label": "Rareté", "weightPercent": "Probabilité (base)"}
         ).assign(**{"Probabilité (base)": lambda df: (df["Probabilité (base)"] * 100).round(2).astype(str) + " %"}),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 # ------------------------------------------------------------ Stratégie
@@ -108,7 +108,7 @@ with onglet_strategie:
                     }
                 ),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
             )
 
     st.subheader("2. Synergies classe + artisanat")
@@ -116,7 +116,7 @@ with onglet_strategie:
         "La synergie donne de l'autonomie économique (pas de bonus de puissance). "
         "À répartir dans l'équipe pour couvrir les 4 artisanats sans doublons inutiles :"
     )
-    st.dataframe(d.synergies_classe_artisanat(), hide_index=True, use_container_width=True)
+    st.dataframe(d.synergies_classe_artisanat(), hide_index=True, width="stretch")
 
     st.subheader("3. Défense territoriale")
     st.markdown(
@@ -157,7 +157,7 @@ with onglet_strategie:
             }
         ),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 # ------------------------------------------------------------- Profils
@@ -173,7 +173,7 @@ with onglet_profils:
         profils,
         num_rows="dynamic",
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config={
             "Classe": st.column_config.SelectboxColumn(options=options_classe),
             "Artisanat": st.column_config.SelectboxColumn(options=options_artisanat),
