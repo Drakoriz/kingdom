@@ -79,10 +79,6 @@ with onglet_profils:
     profils = d.charger_profils()
     metiers_recolte = d.metiers_recolte()
 
-    effectifs_artisanat = profils["Artisanat"].value_counts()
-    for colonne, (nom, effectif) in zip(st.columns(len(effectifs_artisanat)), effectifs_artisanat.items()):
-        colonne.metric(nom, effectif)
-
     effectifs_recolte = profils["Métiers de récolte"].str.split(", ").explode().value_counts()
     for colonne, nom in zip(st.columns(len(metiers_recolte)), sorted(metiers_recolte["name"])):
         colonne.metric(nom, int(effectifs_recolte.get(nom, 0)))
