@@ -22,10 +22,10 @@ with onglet_metiers:
         with sous_onglet:
             recettes_metier = recettes[recettes["station"] == metier["station"]].sort_values("requiredJobLevel")
             for _, recette in recettes_metier.iterrows():
-                titre = f"{recette['resultName']} — niveau {recette['requiredJobLevel']}"
+                titre = f"Niveau {recette['requiredJobLevel']} — {recette['resultName']}"
                 effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements)
                 if effet:
-                    titre += f" — {effet}"
+                    titre += f" : {effet}"
                 with st.expander(titre):
                     ses_ingredients = ingredients[ingredients["recipeId"] == recette["id"]].copy()
                     ses_ingredients["Provenance"] = ses_ingredients["ingredientRegionId"].apply(d.couleur_provenance)
