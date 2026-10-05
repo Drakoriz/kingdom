@@ -12,17 +12,37 @@ ingredients = d.ingredients_recettes()
 metiers = d.metiers_artisanat()
 objets_par_id = d.objets().set_index("id")
 equipements = d.pvp_equipements()
+probabilites_rarete = d.probabilites_rarete()
 
 onglet_metiers, onglet_profils, onglet_recolte = st.tabs(["Métiers", "Profils", "Ingrédients de récolte"])
 
 with onglet_metiers:
+    tri = st.radio(
+        "Trier les recettes par",
+        ["Niveau requis", "Efficacité XP (XP par effort de récolte)"],
+        horizontal=True,
+    )
+
     sous_onglets = st.tabs([m["name"] for _, m in metiers.iterrows()])
 
     for sous_onglet, (_, metier) in zip(sous_onglets, metiers.iterrows()):
         with sous_onglet:
-            recettes_metier = recettes[recettes["station"] == metier["station"]].sort_values("requiredJobLevel")
+            recettes_metier = recettes[recettes["station"] == metier["station"]].copy()
+            recettes_metier["effort"] = recettes_metier["id"].apply(
+                lambda recipe_id: d.effort_recette(recipe_id, ingredients, probabilites_rarete)
+            )
+            recettes_metier["efficacite"] = recettes_metier.apply(
+                lambda r: d.efficacite_xp(r["xp"], r["effort"]), axis=1
+            )
+            if tri == "Niveau requis":
+                recettes_metier = recettes_metier.sort_values("requiredJobLevel")
+            else:
+                recettes_metier = recettes_metier.sort_values("efficacite", ascending=False)
+
             for _, recette in recettes_metier.iterrows():
                 titre = f"Niveau {recette['requiredJobLevel']} — {recette['resultName']} (+{int(recette['xp'])} XP)"
+                if tri != "Niveau requis":
+                    titre += f" — {recette['efficacite']:.1f} XP/effort"
                 effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements) or d.usage_materiau(
                     recette["resultItemId"], ingredients
                 )

@@ -126,3 +126,23 @@ def metiers_utilisateurs(item_id: str, ingredients: pd.DataFrame, metiers_craft:
     stations_utilisees = ingredients[ingredients["ingredientItemId"] == item_id]["station"].unique()
     noms = sorted(metiers_craft[metiers_craft["station"].isin(stations_utilisees)]["name"])
     return ", ".join(noms) if noms else "Aucun"
+
+
+def probabilites_rarete() -> dict:
+    """Probabilité de drop de chaque rareté (feuille Rarities), pour estimer un coût de récolte."""
+    raretes = charger_feuille("Rarities")
+    return dict(zip(raretes["id"], raretes["weightPercent"]))
+
+
+def effort_recette(recipe_id: str, ingredients: pd.DataFrame, probabilites: dict) -> float:
+    """Effort de récolte estimé pour une recette : somme(quantité ÷ probabilité de rareté)
+    sur ses ingrédients. Plus un ingrédient est rare, plus il faut de tentatives en moyenne."""
+    ses_ingredients = ingredients[ingredients["recipeId"] == recipe_id]
+    return sum(
+        ligne["quantity"] / probabilites.get(ligne["ingredientRarity"], 1) for _, ligne in ses_ingredients.iterrows()
+    )
+
+
+def efficacite_xp(xp: float, effort: float) -> float:
+    """XP gagné par unité d'effort de récolte (la fabrication elle-même est instantanée)."""
+    return xp / effort if effort else float("inf")
