@@ -20,7 +20,7 @@ with onglet_metiers:
 
     for sous_onglet, (_, metier) in zip(sous_onglets, metiers.iterrows()):
         with sous_onglet:
-            recettes_metier = recettes[recettes["station"] == metier["station"]]
+            recettes_metier = recettes[recettes["station"] == metier["station"]].sort_values("requiredJobLevel")
             for _, recette in recettes_metier.iterrows():
                 titre = f"{recette['resultName']} — niveau {recette['requiredJobLevel']}"
                 effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements)
