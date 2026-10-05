@@ -10,6 +10,8 @@ CHEMIN_CLASSEUR = Path(__file__).resolve().parent.parent / "NEW_MMORPG_Game_Data
 COULEUR_PAR_REGION = {"RED": "🔴", "BLUE": "🔵", "GREEN": "🟢", "PURPLE": "🟣"}
 COULEUR_COMMUNE = "⚪"
 
+ACTIVITES_RECOLTE = {"fishing": "Pêche", "mining": "Minage", "woodcutting": "Coupe", "farming": "Culture"}
+
 LIBELLES_EFFETS = {
     "xpMultiplier": lambda v: f"+{round((v - 1) * 100)} % XP",
     "quantityChance": lambda v: f"+{round(v * 100)} % chance de quantité bonus",
@@ -108,3 +110,16 @@ def usage_materiau(item_id: str, ingredients: pd.DataFrame) -> str | None:
     if (ingredients["ingredientItemId"] == item_id).any():
         return "COMPOSANT"
     return None
+
+
+def objets_recoltables() -> pd.DataFrame:
+    """Ressources brutes obtenables par la pêche, le minage, la coupe ou la culture."""
+    tous_les_objets = objets()
+    return tous_les_objets[tous_les_objets["gatheringType"].isin(ACTIVITES_RECOLTE)]
+
+
+def metiers_utilisateurs(item_id: str, ingredients: pd.DataFrame, metiers_craft: pd.DataFrame) -> str:
+    """Liste des métiers d'artisanat qui utilisent cet ingrédient dans une recette."""
+    stations_utilisees = ingredients[ingredients["ingredientItemId"] == item_id]["station"].unique()
+    noms = sorted(metiers_craft[metiers_craft["station"].isin(stations_utilisees)]["name"])
+    return ", ".join(noms) if noms else "Aucun"

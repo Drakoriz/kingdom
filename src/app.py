@@ -7,15 +7,15 @@ st.set_page_config(page_title="KINGDOM — Recettes", layout="wide")
 
 st.title("KINGDOM — Recettes d'artisanat")
 
-onglet_metiers, onglet_profils = st.tabs(["Métiers", "Profils"])
+recettes = d.recettes()
+ingredients = d.ingredients_recettes()
+metiers = d.metiers_artisanat()
+objets_par_id = d.objets().set_index("id")
+equipements = d.pvp_equipements()
+
+onglet_metiers, onglet_profils, onglet_recolte = st.tabs(["Métiers", "Profils", "Ingrédients de récolte"])
 
 with onglet_metiers:
-    recettes = d.recettes()
-    ingredients = d.ingredients_recettes()
-    metiers = d.metiers_artisanat()
-    objets_par_id = d.objets().set_index("id")
-    equipements = d.pvp_equipements()
-
     sous_onglets = st.tabs([m["name"] for _, m in metiers.iterrows()])
 
     for sous_onglet, (_, metier) in zip(sous_onglets, metiers.iterrows()):
@@ -57,3 +57,21 @@ with onglet_metiers:
 
 with onglet_profils:
     st.write("Bientôt")
+
+with onglet_recolte:
+    recoltables = d.objets_recoltables()
+    sous_onglets_recolte = st.tabs(list(d.ACTIVITES_RECOLTE.values()))
+
+    for sous_onglet, activite in zip(sous_onglets_recolte, d.ACTIVITES_RECOLTE):
+        with sous_onglet:
+            objets_activite = recoltables[recoltables["gatheringType"] == activite].copy()
+            objets_activite["Métiers"] = objets_activite["id"].apply(
+                lambda item_id: d.metiers_utilisateurs(item_id, ingredients, metiers)
+            )
+            st.dataframe(
+                objets_activite[["name", "rarityLabel", "Métiers"]].rename(
+                    columns={"name": "Ingrédient", "rarityLabel": "Rareté"}
+                ),
+                hide_index=True,
+                width="stretch",
+            )
