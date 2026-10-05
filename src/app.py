@@ -13,7 +13,8 @@ with onglet_metiers:
     recettes = d.recettes()
     ingredients = d.ingredients_recettes()
     metiers = d.metiers_artisanat()
-    effets_par_objet = d.objets().set_index("id")["effectsJson"]
+    objets_par_id = d.objets().set_index("id")
+    equipements = d.pvp_equipements()
 
     sous_onglets = st.tabs([f"{m['emoji']} {m['name']}" for _, m in metiers.iterrows()])
 
@@ -22,7 +23,7 @@ with onglet_metiers:
             recettes_metier = recettes[recettes["station"] == metier["station"]]
             for _, recette in recettes_metier.iterrows():
                 titre = f"{recette['resultName']} — niveau {recette['requiredJobLevel']}"
-                effet = d.effet_lisible(effets_par_objet.get(recette["resultItemId"]))
+                effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements)
                 if effet:
                     titre += f" — {effet}"
                 with st.expander(titre):
