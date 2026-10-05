@@ -77,20 +77,35 @@ with onglet_metiers:
 
 with onglet_profils:
     profils = d.charger_profils()
-    profils_modifies = st.data_editor(
-        profils,
-        num_rows="dynamic",
-        hide_index=True,
-        width="stretch",
-        column_config={
-            "Artisanat": st.column_config.SelectboxColumn(options=sorted(metiers["name"])),
-            "Rôle": st.column_config.SelectboxColumn(options=["Standard", "Principal"]),
-        },
-    )
+    profils_tries = profils.sort_values("Rôle", key=lambda col: col != "Principal")
 
-    if st.button("Enregistrer les profils", type="primary"):
-        d.sauvegarder_profils(profils_modifies)
-        st.success(f"{len(profils_modifies)} profil(s) enregistré(s).")
+    for _, profil in profils_tries.iterrows():
+        with st.container(border=True):
+            st.markdown(
+                "<div style='display:flex; justify-content:space-between; "
+                "align-items:center; gap:1rem;'>"
+                f"<span><strong>{profil['Pseudo']}</strong></span>"
+                f"<span style='white-space:nowrap;'>{profil['Rôle']}</span>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption(f"Artisanat : {profil['Artisanat']} · Récolte : {profil['Métiers de récolte']}")
+
+    with st.expander("Modifier / ajouter un profil"):
+        profils_modifies = st.data_editor(
+            profils,
+            num_rows="dynamic",
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "Artisanat": st.column_config.SelectboxColumn(options=sorted(metiers["name"])),
+                "Rôle": st.column_config.SelectboxColumn(options=["Standard", "Principal"]),
+            },
+        )
+
+        if st.button("Enregistrer les profils", type="primary"):
+            d.sauvegarder_profils(profils_modifies)
+            st.success(f"{len(profils_modifies)} profil(s) enregistré(s).")
 
 with onglet_recolte:
     recoltables = d.objets_recoltables()
