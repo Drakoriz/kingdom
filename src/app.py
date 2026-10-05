@@ -1,4 +1,6 @@
 """Recettes d'artisanat de KINGDOM, par métier."""
+import math
+
 import streamlit as st
 
 import donnees as d
@@ -14,7 +16,9 @@ objets_par_id = d.objets().set_index("id")
 equipements = d.pvp_equipements()
 probabilites_rarete = d.probabilites_rarete()
 
-onglet_metiers, onglet_profils, onglet_recolte = st.tabs(["Métiers", "Profils", "Ingrédients de récolte"])
+onglet_metiers, onglet_profils, onglet_recolte, onglet_calculateur = st.tabs(
+    ["Métiers", "Profils", "Ingrédients de récolte", "Calculateur XP"]
+)
 
 with onglet_metiers:
     tri = st.radio(
@@ -127,3 +131,42 @@ with onglet_recolte:
                 hide_index=True,
                 width="stretch",
             )
+
+with onglet_calculateur:
+    niveaux_xp = d.charger_feuille("Levels XP")
+
+    metier_choisi = st.selectbox("Métier", metiers["name"])
+    station_choisie = metiers.loc[metiers["name"] == metier_choisi, "station"].iloc[0]
+
+    colonne_actuel, colonne_souhaite = st.columns(2)
+    niveau_actuel = colonne_actuel.number_input("Niveau actuel", min_value=1, max_value=50, value=1)
+    niveau_souhaite = colonne_souhaite.number_input("Niveau souhaité", min_value=1, max_value=50, value=20)
+
+    if niveau_souhaite <= niveau_actuel:
+        st.warning("Le niveau souhaité doit être supérieur au niveau actuel.")
+    else:
+        xp_actuel = niveaux_xp.loc[niveaux_xp["level"] == niveau_actuel, "totalXpAtStart"].iloc[0]
+        xp_souhaite = niveaux_xp.loc[niveaux_xp["level"] == niveau_souhaite, "totalXpAtStart"].iloc[0]
+        xp_necessaire = xp_souhaite - xp_actuel
+
+        st.metric(f"XP nécessaire ({metier_choisi} {niveau_actuel} → {niveau_souhaite})", f"{xp_necessaire:,.0f}".replace(",", " "))
+
+        recettes_disponibles = recettes[
+            (recettes["station"] == station_choisie) & (recettes["requiredJobLevel"] <= niveau_actuel)
+        ].copy()
+
+        if recettes_disponibles.empty:
+            st.info("Aucune recette disponible à ce niveau.")
+        else:
+            recettes_disponibles["effort"] = recettes_disponibles["id"].apply(
+                lambda recipe_id: d.effort_recette(recipe_id, ingredients, probabilites_rarete)
+            )
+            recettes_disponibles["efficacite"] = recettes_disponibles.apply(
+                lambda r: d.efficacite_xp(r["xp"], r["effort"]), axis=1
+            )
+            top5 = recettes_disponibles.sort_values("efficacite", ascending=False).head(5)
+
+            st.write("Pour atteindre ce niveau, au choix :")
+            for _, recette in top5.iterrows():
+                nb_crafts = math.ceil(xp_necessaire / recette["xp"])
+                st.markdown(f"- **{nb_crafts} × {recette['resultName']}** ({recette['efficacite']:.1f} XP/effort)")
