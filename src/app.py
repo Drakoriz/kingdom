@@ -24,10 +24,19 @@ with onglet_metiers:
             for _, recette in recettes_metier.iterrows():
                 titre = f"Niveau {recette['requiredJobLevel']} — {recette['resultName']}"
                 effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements)
+                cle_ouverte = f"ouvert_{recette['id']}"
+                st.session_state.setdefault(cle_ouverte, False)
 
-                col_recette, col_effet = st.columns([5, 2], vertical_alignment="center")
-                with col_recette:
-                    with st.expander(titre):
+                with st.container(border=True):
+                    col_titre, col_effet = st.columns([5, 2], vertical_alignment="center")
+                    with col_titre:
+                        if st.button(titre, key=f"bouton_{recette['id']}", width="stretch"):
+                            st.session_state[cle_ouverte] = not st.session_state[cle_ouverte]
+                    with col_effet:
+                        if effet:
+                            st.markdown(f"<div style='text-align:right'>{effet}</div>", unsafe_allow_html=True)
+
+                    if st.session_state[cle_ouverte]:
                         ses_ingredients = ingredients[ingredients["recipeId"] == recette["id"]].copy()
                         ses_ingredients["Provenance"] = ses_ingredients["ingredientRegionId"].apply(
                             d.couleur_provenance
@@ -39,9 +48,6 @@ with onglet_metiers:
                             hide_index=True,
                             width="stretch",
                         )
-                with col_effet:
-                    if effet:
-                        st.markdown(f"<div style='text-align:right'>{effet}</div>", unsafe_allow_html=True)
 
 with onglet_profils:
     st.write("Bientôt")
