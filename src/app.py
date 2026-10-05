@@ -8,6 +8,7 @@ import donnees as d
 st.set_page_config(page_title="KINGDOM — Recettes", layout="wide")
 
 st.title("KINGDOM — Recettes d'artisanat")
+st.caption("Si t'es un rouge ou un bleu qui lit ce message, t'es un gros dog qui pue *crachat*")
 
 recettes = d.recettes()
 ingredients = d.ingredients_recettes()
