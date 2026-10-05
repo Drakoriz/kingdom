@@ -26,6 +26,8 @@ with onglet_metiers:
                 effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements) or d.usage_materiau(
                     recette["resultItemId"], ingredients
                 )
+                xp_fabrication = f"+{int(recette['xp'])} XP"
+                effet = f"{effet} · {xp_fabrication}" if effet else xp_fabrication
                 cle_ouverte = f"ouvert_{recette['id']}"
                 st.session_state.setdefault(cle_ouverte, False)
 
