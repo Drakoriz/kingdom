@@ -24,7 +24,7 @@ with onglet_metiers:
             for _, recette in recettes_metier.iterrows():
                 titre = f"Niveau {recette['requiredJobLevel']} — {recette['resultName']}"
                 effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements) or d.usage_materiau(
-                    recette["resultItemId"], ingredients, recettes
+                    recette["resultItemId"], ingredients
                 )
                 cle_ouverte = f"ouvert_{recette['id']}"
                 st.session_state.setdefault(cle_ouverte, False)

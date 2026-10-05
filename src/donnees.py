@@ -103,11 +103,8 @@ def effet_objet(item_id: str, objets_par_id: pd.DataFrame, equipements: pd.DataF
     return effet_combat_lisible(meilleure_affinite["statsJson"])
 
 
-def usage_materiau(item_id: str, ingredients: pd.DataFrame, recettes: pd.DataFrame) -> str | None:
-    """Pour un composant sans effet propre : dans quelle recette (la plus avancée) il sert."""
-    utilisations = ingredients[ingredients["ingredientItemId"] == item_id]
-    recettes_utilisatrices = recettes[recettes["id"].isin(utilisations["recipeId"])]
-    if recettes_utilisatrices.empty:
-        return None
-    meilleure = recettes_utilisatrices.loc[recettes_utilisatrices["requiredJobLevel"].idxmax()]
-    return f"Composant de {meilleure['resultName']} (niveau {meilleure['requiredJobLevel']})"
+def usage_materiau(item_id: str, ingredients: pd.DataFrame) -> str | None:
+    """Pour un objet sans effet propre : signale juste qu'il sert à fabriquer autre chose."""
+    if (ingredients["ingredientItemId"] == item_id).any():
+        return "COMPOSANT"
+    return None
