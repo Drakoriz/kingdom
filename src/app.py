@@ -16,8 +16,8 @@ objets_par_id = d.objets().set_index("id")
 equipements = d.pvp_equipements()
 probabilites_rarete = d.probabilites_rarete()
 
-onglet_metiers, onglet_profils, onglet_recolte, onglet_calculateur = st.tabs(
-    ["Métiers", "Profils", "Ingrédients de récolte", "Calculateur XP"]
+onglet_metiers, onglet_profils, onglet_recolte, onglet_calculateur, onglet_optimisation = st.tabs(
+    ["Métiers", "Profils", "Ingrédients de récolte", "Calculateur XP", "Optimisation"]
 )
 
 with onglet_metiers:
@@ -194,3 +194,36 @@ with onglet_calculateur:
                     f"- {nb_crafts} × {recette['resultName']} ({detail}) "
                     f"= {recette['xp_total'] * nb_crafts:,.0f} XP ({recette['efficacite_reelle']:.1f} XP/effort)".replace(",", " ")
                 )
+
+with onglet_optimisation:
+    st.caption(
+        "Renseigne ce que l'équipe a récolté cette session : le solveur répartit ces matériaux "
+        "entre les recettes (y compris les intermédiaires comme les lingots) pour maximiser l'XP totale."
+    )
+
+    metier_opt = st.selectbox("Métier", metiers["name"], key="metier_opt")
+    station_opt = metiers.loc[metiers["name"] == metier_opt, "station"].iloc[0]
+    niveau_opt = st.number_input("Niveau actuel", min_value=1, max_value=50, value=1, key="niveau_opt")
+
+    bruts = d.materiaux_bruts(station_opt, ingredients, recettes, niveau_opt)
+    noms_bruts = ingredients.drop_duplicates(subset="ingredientItemId").set_index("ingredientItemId")["ingredientName"]
+
+    st.write("Matériaux récoltés cette session :")
+    disponibilites = {}
+    colonnes_dispo = st.columns(4)
+    for i, item_id in enumerate(bruts):
+        disponibilites[item_id] = colonnes_dispo[i % 4].number_input(
+            noms_bruts.get(item_id, item_id), min_value=0, value=0, key=f"dispo_{item_id}"
+        )
+
+    if not any(disponibilites.values()):
+        st.info("Renseigne au moins un matériau récolté pour lancer l'optimisation.")
+    else:
+        xp_total_opt, repartition = d.optimiser_xp(station_opt, niveau_opt, disponibilites, ingredients, recettes)
+        st.metric("XP total atteignable", f"{xp_total_opt:,.0f}".replace(",", " "))
+        if not repartition:
+            st.warning("Pas assez de matériaux pour fabriquer quoi que ce soit.")
+        else:
+            noms_recettes = recettes.set_index("id")["resultName"]
+            for rid, nb in sorted(repartition.items(), key=lambda kv: -kv[1]):
+                st.markdown(f"- {nb} × {noms_recettes[rid]}")

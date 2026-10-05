@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pulp
 import streamlit as st
 
 CHEMIN_CLASSEUR = Path(__file__).resolve().parent.parent / "NEW_MMORPG_Game_Data.xlsx"
@@ -204,6 +205,57 @@ def xp_total_recette(recipe_id: str, ingredients: pd.DataFrame, recettes: pd.Dat
 def efficacite_xp(xp: float, effort: float) -> float:
     """XP gagné par unité d'effort de récolte (la fabrication elle-même est instantanée)."""
     return xp / effort if effort else float("inf")
+
+
+def materiaux_bruts(station: str, ingredients: pd.DataFrame, recettes: pd.DataFrame, niveau_max: int) -> list[str]:
+    """Identifiants des matériaux bruts (non craftés) nécessaires, directement ou indirectement,
+    par les recettes d'un métier débloquées jusqu'à un niveau donné."""
+    a_explorer = list(recettes[(recettes["station"] == station) & (recettes["requiredJobLevel"] <= niveau_max)]["id"])
+    bruts, vus = set(), set()
+    while a_explorer:
+        item_id = a_explorer.pop()
+        if item_id in vus:
+            continue
+        vus.add(item_id)
+        for _, ligne in ingredients[ingredients["recipeId"] == item_id].iterrows():
+            ingredient_id = ligne["ingredientItemId"]
+            if (ingredients["recipeId"] == ingredient_id).any():
+                a_explorer.append(ingredient_id)
+            else:
+                bruts.add(ingredient_id)
+    return sorted(bruts)
+
+
+def optimiser_xp(
+    station: str, niveau_actuel: int, disponibilites: dict, ingredients: pd.DataFrame, recettes: pd.DataFrame
+) -> tuple[float, dict]:
+    """Alloue les matériaux bruts disponibles (clé = ingredientItemId) entre les recettes d'un
+    métier pour maximiser l'XP totale, par programmation linéaire. Un ingrédient lui-même crafté
+    (ex: Lingot de fer) est aussi une variable de décision : le solveur choisit de le garder tel
+    quel pour son XP propre, ou de le transformer en recette plus avancée, selon ce qui rapporte le
+    plus au total."""
+    recettes_utilisables = recettes[(recettes["station"] == station) & (recettes["requiredJobLevel"] <= niveau_actuel)]
+    ids_recettes = list(recettes_utilisables["id"])
+    bruts = materiaux_bruts(station, ingredients, recettes, niveau_actuel)
+    conso = ingredients.groupby(["recipeId", "ingredientItemId"])["quantity"].sum()
+    quantite_produite = ingredients.groupby("recipeId")["resultQuantity"].first()
+    xp_par_recette = recettes_utilisables.set_index("id")["xp"].to_dict()
+
+    probleme = pulp.LpProblem("xp_metier", pulp.LpMaximize)
+    x = {rid: pulp.LpVariable(f"craft_{rid}", lowBound=0, cat="Integer") for rid in ids_recettes}
+    probleme += pulp.lpSum(x[rid] * xp_par_recette[rid] for rid in ids_recettes)
+
+    for item_id in set(ids_recettes) | set(bruts):
+        consomme = pulp.lpSum(x[rid] * conso.get((rid, item_id), 0) for rid in ids_recettes)
+        if item_id in ids_recettes:
+            probleme += consomme <= x[item_id] * quantite_produite.get(item_id, 1)
+        else:
+            probleme += consomme <= disponibilites.get(item_id, 0)
+
+    probleme.solve(pulp.PULP_CBC_CMD(msg=False))
+
+    repartition = {rid: int(round(x[rid].value() or 0)) for rid in ids_recettes if (x[rid].value() or 0) > 0.5}
+    return pulp.value(probleme.objective) or 0.0, repartition
 
 
 def charger_profils() -> pd.DataFrame:

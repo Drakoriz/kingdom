@@ -1,4 +1,5 @@
 openpyxl==3.1.5
 pandas==3.0.6
+pulp==3.3.2
 streamlit==1.65.0
 watchdog==6.0.0
