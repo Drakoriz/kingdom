@@ -28,13 +28,17 @@ with onglet_metiers:
                 st.session_state.setdefault(cle_ouverte, False)
 
                 with st.container(border=True):
-                    col_titre, col_effet = st.columns([5, 2], vertical_alignment="center")
-                    with col_titre:
-                        if st.button(titre, key=f"bouton_{recette['id']}", width="stretch"):
-                            st.session_state[cle_ouverte] = not st.session_state[cle_ouverte]
-                    with col_effet:
-                        if effet:
-                            st.markdown(f"<div style='text-align:right'>{effet}</div>", unsafe_allow_html=True)
+                    st.markdown(
+                        "<div style='display:flex; justify-content:space-between; "
+                        "align-items:center; gap:1rem;'>"
+                        f"<span>{titre}</span>"
+                        f"<span style='white-space:nowrap;'>{effet or ''}</span>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                    ouvert = st.session_state[cle_ouverte]
+                    if st.button("Masquer les ingrédients" if ouvert else "Voir les ingrédients", key=f"bouton_{recette['id']}"):
+                        st.session_state[cle_ouverte] = not ouvert
 
                     if st.session_state[cle_ouverte]:
                         ses_ingredients = ingredients[ingredients["recipeId"] == recette["id"]].copy()
