@@ -6,6 +6,9 @@ import pandas as pd
 import streamlit as st
 
 CHEMIN_CLASSEUR = Path(__file__).resolve().parent.parent / "NEW_MMORPG_Game_Data.xlsx"
+CHEMIN_PROFILS = Path(__file__).resolve().parent / "data" / "profils_equipe.csv"
+
+COLONNES_PROFILS = ["Pseudo", "Artisanat", "Métiers de récolte"]
 
 COULEUR_PAR_REGION = {"RED": "🔴", "BLUE": "🔵", "GREEN": "🟢", "PURPLE": "🟣"}
 COULEUR_COMMUNE = "⚪"
@@ -146,3 +149,14 @@ def effort_recette(recipe_id: str, ingredients: pd.DataFrame, probabilites: dict
 def efficacite_xp(xp: float, effort: float) -> float:
     """XP gagné par unité d'effort de récolte (la fabrication elle-même est instantanée)."""
     return xp / effort if effort else float("inf")
+
+
+def charger_profils() -> pd.DataFrame:
+    if CHEMIN_PROFILS.exists():
+        return pd.read_csv(CHEMIN_PROFILS)
+    return pd.DataFrame(columns=COLONNES_PROFILS)
+
+
+def sauvegarder_profils(profils: pd.DataFrame) -> None:
+    CHEMIN_PROFILS.parent.mkdir(parents=True, exist_ok=True)
+    profils.to_csv(CHEMIN_PROFILS, index=False)

@@ -76,7 +76,20 @@ with onglet_metiers:
                         )
 
 with onglet_profils:
-    st.write("Bientôt")
+    profils = d.charger_profils()
+    profils_modifies = st.data_editor(
+        profils,
+        num_rows="dynamic",
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Artisanat": st.column_config.SelectboxColumn(options=sorted(metiers["name"])),
+        },
+    )
+
+    if st.button("Enregistrer les profils", type="primary"):
+        d.sauvegarder_profils(profils_modifies)
+        st.success(f"{len(profils_modifies)} profil(s) enregistré(s).")
 
 with onglet_recolte:
     recoltables = d.objets_recoltables()
