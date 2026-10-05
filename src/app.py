@@ -91,22 +91,6 @@ with onglet_profils:
             )
             st.caption(f"Artisanat : {profil['Artisanat']} · Récolte : {profil['Métiers de récolte']}")
 
-    with st.expander("Modifier / ajouter un profil"):
-        profils_modifies = st.data_editor(
-            profils,
-            num_rows="dynamic",
-            hide_index=True,
-            width="stretch",
-            column_config={
-                "Artisanat": st.column_config.SelectboxColumn(options=sorted(metiers["name"])),
-                "Rôle": st.column_config.SelectboxColumn(options=["Standard", "Principal"]),
-            },
-        )
-
-        if st.button("Enregistrer les profils", type="primary"):
-            d.sauvegarder_profils(profils_modifies)
-            st.success(f"{len(profils_modifies)} profil(s) enregistré(s).")
-
 with onglet_recolte:
     recoltables = d.objets_recoltables()
     sous_onglets_recolte = st.tabs(list(d.ACTIVITES_RECOLTE.values()))

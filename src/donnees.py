@@ -155,8 +155,3 @@ def charger_profils() -> pd.DataFrame:
     if CHEMIN_PROFILS.exists():
         return pd.read_csv(CHEMIN_PROFILS).fillna("")
     return pd.DataFrame(columns=COLONNES_PROFILS)
-
-
-def sauvegarder_profils(profils: pd.DataFrame) -> None:
-    CHEMIN_PROFILS.parent.mkdir(parents=True, exist_ok=True)
-    profils.to_csv(CHEMIN_PROFILS, index=False)
