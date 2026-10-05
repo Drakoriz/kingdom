@@ -84,6 +84,7 @@ with onglet_profils:
         width="stretch",
         column_config={
             "Artisanat": st.column_config.SelectboxColumn(options=sorted(metiers["name"])),
+            "Rôle": st.column_config.SelectboxColumn(options=["Standard", "Principal"]),
         },
     )
 

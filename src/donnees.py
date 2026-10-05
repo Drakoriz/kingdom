@@ -8,7 +8,7 @@ import streamlit as st
 CHEMIN_CLASSEUR = Path(__file__).resolve().parent.parent / "NEW_MMORPG_Game_Data.xlsx"
 CHEMIN_PROFILS = Path(__file__).resolve().parent / "data" / "profils_equipe.csv"
 
-COLONNES_PROFILS = ["Pseudo", "Artisanat", "Métiers de récolte"]
+COLONNES_PROFILS = ["Pseudo", "Artisanat", "Métiers de récolte", "Rôle"]
 
 COULEUR_PAR_REGION = {"RED": "🔴", "BLUE": "🔵", "GREEN": "🟢", "PURPLE": "🟣"}
 COULEUR_COMMUNE = "⚪"
@@ -153,7 +153,7 @@ def efficacite_xp(xp: float, effort: float) -> float:
 
 def charger_profils() -> pd.DataFrame:
     if CHEMIN_PROFILS.exists():
-        return pd.read_csv(CHEMIN_PROFILS)
+        return pd.read_csv(CHEMIN_PROFILS).fillna("")
     return pd.DataFrame(columns=COLONNES_PROFILS)
 
 
