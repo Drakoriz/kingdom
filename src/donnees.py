@@ -142,12 +142,31 @@ def probabilites_rarete() -> dict:
     return dict(zip(raretes["id"], raretes["weightPercent"]))
 
 
+def effort_ingredient(
+    item_id: str, quantite: float, rarete: str | None, ingredients: pd.DataFrame, probabilites: dict, vus: frozenset = frozenset()
+) -> float:
+    """Effort de récolte pour obtenir `quantite` unités de `item_id`. Si l'ingrédient est lui-même
+    une recette (ex: Lingot de fer), on descend jusqu'à ses propres ingrédients récoltables."""
+    sous_recette = ingredients[ingredients["recipeId"] == item_id]
+    if sous_recette.empty or item_id in vus:
+        return quantite / probabilites.get(rarete, 1)
+    quantite_produite = sous_recette["resultQuantity"].iloc[0]
+    cout_unitaire = sum(
+        effort_ingredient(
+            ligne["ingredientItemId"], ligne["quantity"], ligne["ingredientRarity"], ingredients, probabilites, vus | {item_id}
+        )
+        for _, ligne in sous_recette.iterrows()
+    )
+    return quantite * cout_unitaire / quantite_produite
+
+
 def effort_recette(recipe_id: str, ingredients: pd.DataFrame, probabilites: dict) -> float:
-    """Effort de récolte estimé pour une recette : somme(quantité ÷ probabilité de rareté)
-    sur ses ingrédients. Plus un ingrédient est rare, plus il faut de tentatives en moyenne."""
+    """Effort de récolte estimé pour une recette : somme sur ses ingrédients de l'effort nécessaire
+    pour les obtenir (récursif pour les ingrédients eux-mêmes craftés, ex: Lingot de fer)."""
     ses_ingredients = ingredients[ingredients["recipeId"] == recipe_id]
     return sum(
-        ligne["quantity"] / probabilites.get(ligne["ingredientRarity"], 1) for _, ligne in ses_ingredients.iterrows()
+        effort_ingredient(ligne["ingredientItemId"], ligne["quantity"], ligne["ingredientRarity"], ingredients, probabilites)
+        for _, ligne in ses_ingredients.iterrows()
     )
 
 
