@@ -164,9 +164,33 @@ with onglet_calculateur:
             recettes_disponibles["efficacite"] = recettes_disponibles.apply(
                 lambda r: d.efficacite_xp(r["xp"], r["effort"]), axis=1
             )
-            top5 = recettes_disponibles.sort_values("efficacite", ascending=False).head(5)
+            recettes_disponibles["xp_total"] = recettes_disponibles["id"].apply(
+                lambda recipe_id: d.xp_total_recette(recipe_id, ingredients, recettes)
+            )
+            recettes_disponibles["efficacite_reelle"] = recettes_disponibles.apply(
+                lambda r: d.efficacite_xp(r["xp_total"], r["effort"]), axis=1
+            )
 
-            st.write("Pour atteindre ce niveau, au choix :")
+            top5 = recettes_disponibles.sort_values("efficacite", ascending=False).head(5)
+            top5_reel = recettes_disponibles.sort_values("efficacite_reelle", ascending=False).head(5)
+
+            st.write("**Option simple** (XP du craft final uniquement) :")
             for _, recette in top5.iterrows():
                 nb_crafts = math.ceil(xp_necessaire / recette["xp"])
-                st.markdown(f"- **{nb_crafts} × {recette['resultName']}** ({recette['efficacite']:.1f} XP/effort)")
+                st.markdown(f"- {nb_crafts} × {recette['resultName']} ({recette['efficacite']:.1f} XP/effort)")
+
+            st.write(
+                "**Option réaliste** (un ingrédient crafté, comme un lingot, rapporte déjà de l'XP "
+                "avant même d'être utilisé dans la recette finale) :"
+            )
+            for _, recette in top5_reel.iterrows():
+                nb_crafts = math.ceil(xp_necessaire / recette["xp_total"])
+                ses_ingredients = ingredients[ingredients["recipeId"] == recette["id"]]
+                detail = " + ".join(
+                    f"{math.ceil(ligne['quantity'] * nb_crafts)} {ligne['ingredientName']}"
+                    for _, ligne in ses_ingredients.iterrows()
+                )
+                st.markdown(
+                    f"- {nb_crafts} × {recette['resultName']} ({detail}) "
+                    f"= {recette['xp_total'] * nb_crafts:,.0f} XP ({recette['efficacite_reelle']:.1f} XP/effort)".replace(",", " ")
+                )

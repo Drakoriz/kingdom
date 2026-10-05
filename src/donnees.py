@@ -170,6 +170,37 @@ def effort_recette(recipe_id: str, ingredients: pd.DataFrame, probabilites: dict
     )
 
 
+def xp_total_ingredient(
+    item_id: str, quantite: float, ingredients: pd.DataFrame, recettes: pd.DataFrame, vus: frozenset = frozenset()
+) -> float:
+    """XP cumulée en forgeant `quantite` unités de `item_id`, si celui-ci est lui-même une recette
+    (ex: forger les lingots de fer rapporte déjà de l'XP, avant même de les utiliser dans l'épée)."""
+    sous_recette = ingredients[ingredients["recipeId"] == item_id]
+    if sous_recette.empty or item_id in vus:
+        return 0.0
+    quantite_produite = sous_recette["resultQuantity"].iloc[0]
+    nb_crafts = quantite / quantite_produite
+    xp_recette = recettes.loc[recettes["id"] == item_id, "xp"].iloc[0]
+    xp_ingredients = sum(
+        xp_total_ingredient(
+            ligne["ingredientItemId"], ligne["quantity"] * nb_crafts, ingredients, recettes, vus | {item_id}
+        )
+        for _, ligne in sous_recette.iterrows()
+    )
+    return nb_crafts * xp_recette + xp_ingredients
+
+
+def xp_total_recette(recipe_id: str, ingredients: pd.DataFrame, recettes: pd.DataFrame) -> float:
+    """XP totale réellement gagnée en fabriquant une recette : son propre XP, plus celui de ses
+    ingrédients s'ils sont eux-mêmes craftés au lieu d'être directement récoltés."""
+    xp_propre = recettes.loc[recettes["id"] == recipe_id, "xp"].iloc[0]
+    ses_ingredients = ingredients[ingredients["recipeId"] == recipe_id]
+    return xp_propre + sum(
+        xp_total_ingredient(ligne["ingredientItemId"], ligne["quantity"], ingredients, recettes)
+        for _, ligne in ses_ingredients.iterrows()
+    )
+
+
 def efficacite_xp(xp: float, effort: float) -> float:
     """XP gagné par unité d'effort de récolte (la fabrication elle-même est instantanée)."""
     return xp / effort if effort else float("inf")
