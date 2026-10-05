@@ -55,6 +55,11 @@ def metiers_artisanat() -> pd.DataFrame:
     return metiers[metiers["type"] == "crafting"]
 
 
+def metiers_recolte() -> pd.DataFrame:
+    metiers = charger_feuille("Jobs")
+    return metiers[metiers["type"] == "gathering"]
+
+
 def recettes() -> pd.DataFrame:
     return charger_feuille("Recipes")
 

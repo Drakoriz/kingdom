@@ -77,6 +77,12 @@ with onglet_metiers:
 
 with onglet_profils:
     profils = d.charger_profils()
+    metiers_recolte = d.metiers_recolte()
+
+    filtre_recolte = st.selectbox("Filtrer par récolte", ["Tous"] + sorted(metiers_recolte["name"]))
+    if filtre_recolte != "Tous":
+        profils = profils[profils["Métiers de récolte"].str.contains(filtre_recolte)]
+
     profils_tries = profils.sort_values("Rôle", key=lambda col: col != "Principal")
 
     for _, profil in profils_tries.iterrows():
