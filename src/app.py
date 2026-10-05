@@ -3,11 +3,11 @@ import streamlit as st
 
 import donnees as d
 
-st.set_page_config(page_title="KINGDOM — Recettes", page_icon="🔨", layout="wide")
+st.set_page_config(page_title="KINGDOM — Recettes", layout="wide")
 
-st.title("🔨 KINGDOM — Recettes d'artisanat")
+st.title("KINGDOM — Recettes d'artisanat")
 
-onglet_metiers, onglet_profils = st.tabs(["🔨 Métiers", "👥 Profils"])
+onglet_metiers, onglet_profils = st.tabs(["Métiers", "Profils"])
 
 with onglet_metiers:
     recettes = d.recettes()
@@ -16,7 +16,7 @@ with onglet_metiers:
     objets_par_id = d.objets().set_index("id")
     equipements = d.pvp_equipements()
 
-    sous_onglets = st.tabs([f"{m['emoji']} {m['name']}" for _, m in metiers.iterrows()])
+    sous_onglets = st.tabs([m["name"] for _, m in metiers.iterrows()])
 
     for sous_onglet, (_, metier) in zip(sous_onglets, metiers.iterrows()):
         with sous_onglet:
@@ -24,18 +24,24 @@ with onglet_metiers:
             for _, recette in recettes_metier.iterrows():
                 titre = f"Niveau {recette['requiredJobLevel']} — {recette['resultName']}"
                 effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements)
-                if effet:
-                    titre += f" : {effet}"
-                with st.expander(titre):
-                    ses_ingredients = ingredients[ingredients["recipeId"] == recette["id"]].copy()
-                    ses_ingredients["Provenance"] = ses_ingredients["ingredientRegionId"].apply(d.couleur_provenance)
-                    st.dataframe(
-                        ses_ingredients[["Provenance", "ingredientName", "quantity"]].rename(
-                            columns={"ingredientName": "Ingrédient", "quantity": "Quantité"}
-                        ),
-                        hide_index=True,
-                        width="stretch",
-                    )
+
+                col_recette, col_effet = st.columns([5, 2], vertical_alignment="center")
+                with col_recette:
+                    with st.expander(titre):
+                        ses_ingredients = ingredients[ingredients["recipeId"] == recette["id"]].copy()
+                        ses_ingredients["Provenance"] = ses_ingredients["ingredientRegionId"].apply(
+                            d.couleur_provenance
+                        )
+                        st.dataframe(
+                            ses_ingredients[["Provenance", "ingredientName", "quantity"]].rename(
+                                columns={"ingredientName": "Ingrédient", "quantity": "Quantité"}
+                            ),
+                            hide_index=True,
+                            width="stretch",
+                        )
+                with col_effet:
+                    if effet:
+                        st.markdown(f"<div style='text-align:right'>{effet}</div>", unsafe_allow_html=True)
 
 with onglet_profils:
     st.write("Bientôt")
