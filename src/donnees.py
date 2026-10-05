@@ -11,6 +11,7 @@ COULEUR_PAR_REGION = {"RED": "🔴", "BLUE": "🔵", "GREEN": "🟢", "PURPLE": 
 COULEUR_COMMUNE = "⚪"
 
 ACTIVITES_RECOLTE = {"fishing": "Pêche", "mining": "Minage", "woodcutting": "Coupe", "farming": "Culture"}
+ORDRE_RARETE = ["COMMON", "RARE", "EPIC", "LEGENDARY"]
 
 LIBELLES_EFFETS = {
     "xpMultiplier": lambda v: f"+{round((v - 1) * 100)} % XP",
@@ -113,9 +114,11 @@ def usage_materiau(item_id: str, ingredients: pd.DataFrame) -> str | None:
 
 
 def objets_recoltables() -> pd.DataFrame:
-    """Ressources brutes obtenables par la pêche, le minage, la coupe ou la culture."""
+    """Ressources brutes obtenables par la pêche, le minage, la coupe ou la culture, triées par rareté."""
     tous_les_objets = objets()
-    return tous_les_objets[tous_les_objets["gatheringType"].isin(ACTIVITES_RECOLTE)]
+    recoltables = tous_les_objets[tous_les_objets["gatheringType"].isin(ACTIVITES_RECOLTE)].copy()
+    recoltables["rarity"] = pd.Categorical(recoltables["rarity"], categories=ORDRE_RARETE, ordered=True)
+    return recoltables.sort_values("rarity")
 
 
 def metiers_utilisateurs(item_id: str, ingredients: pd.DataFrame, metiers_craft: pd.DataFrame) -> str:
