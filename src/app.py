@@ -68,6 +68,15 @@ with onglet_recolte:
             objets_activite["Métiers"] = objets_activite["id"].apply(
                 lambda item_id: d.metiers_utilisateurs(item_id, ingredients, metiers)
             )
+
+            filtre_metier = st.selectbox(
+                "Filtrer par métier",
+                ["Tous"] + sorted(metiers["name"]),
+                key=f"filtre_metier_{activite}",
+            )
+            if filtre_metier != "Tous":
+                objets_activite = objets_activite[objets_activite["Métiers"].str.contains(filtre_metier)]
+
             st.dataframe(
                 objets_activite[["name", "rarityLabel", "Métiers"]].rename(
                     columns={"name": "Ingrédient", "rarityLabel": "Rareté"}
