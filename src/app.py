@@ -371,3 +371,10 @@ with onglet_revente:
         hide_index=True,
         width="stretch",
     )
+
+    objectif_or = st.number_input("Objectif en or", min_value=1, value=15000, step=1000)
+    top5_craftes = rentabilite_craftee.sort_values("orParEffort", ascending=False).head(5)
+    st.write(f"Pour atteindre {objectif_or:,.0f} or, au choix :".replace(",", " "))
+    for _, item in top5_craftes.iterrows():
+        nb_crafts = math.ceil(objectif_or / item["prixVente"])
+        st.markdown(f"- {nb_crafts} × {item['resultName']} ({item['orParEffort']:.1f} or/effort)")
