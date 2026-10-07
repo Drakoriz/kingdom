@@ -192,11 +192,8 @@ with onglet_calculateur:
             )
             for _, recette in top5_reel.iterrows():
                 nb_crafts = math.ceil(xp_necessaire / recette["xp_total"])
-                ses_ingredients = ingredients[ingredients["recipeId"] == recette["id"]]
-                detail = " + ".join(
-                    f"{math.ceil(ligne['quantity'] * nb_crafts)} {ligne['ingredientName']}"
-                    for _, ligne in ses_ingredients.iterrows()
-                )
+                composants = d.composants_bruts_recette(recette["id"], nb_crafts, ingredients)
+                detail = " + ".join(f"{math.ceil(qte)} {nom}" for nom, qte in composants.items())
                 st.markdown(
                     f"- {nb_crafts} × {recette['resultName']} ({detail}) "
                     f"= {recette['xp_total'] * nb_crafts:,.0f} XP ({recette['efficacite_reelle']:.1f} XP/effort)".replace(",", " ")
@@ -377,11 +374,8 @@ with onglet_revente:
     st.write(f"Pour atteindre {objectif_or:,.0f} or, au choix :".replace(",", " "))
     for _, item in top5_craftes.iterrows():
         nb_crafts = math.ceil(objectif_or / item["prixVente"])
-        ses_ingredients = ingredients[ingredients["recipeId"] == item["id"]]
-        detail = " + ".join(
-            f"{math.ceil(ligne['quantity'] * nb_crafts)} {ligne['ingredientName']}"
-            for _, ligne in ses_ingredients.iterrows()
-        )
+        composants = d.composants_bruts_recette(item["id"], nb_crafts, ingredients)
+        detail = " + ".join(f"{math.ceil(qte)} {nom}" for nom, qte in composants.items())
         st.markdown(
             f"- {nb_crafts} × {item['resultName']} ({detail}) "
             f"= {item['prixVente'] * nb_crafts:,.0f} or ({item['orParEffort']:.1f} or/effort)".replace(",", " ")

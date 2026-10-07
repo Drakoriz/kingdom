@@ -192,6 +192,38 @@ def rentabilite_vente_craftee(
     return craftes.sort_values("orParEffort", ascending=False)
 
 
+def composants_bruts(
+    item_id: str, quantite: float, nom: str, ingredients: pd.DataFrame, vus: frozenset = frozenset()
+) -> dict:
+    """Décompose `quantite` unités de `item_id` en matériaux bruts (non craftés) : si l'objet est
+    lui-même une recette (ex: Lingot de fer), redescend sur ses propres ingrédients au lieu de
+    s'arrêter à lui."""
+    sous_recette = ingredients[ingredients["recipeId"] == item_id]
+    if sous_recette.empty or item_id in vus:
+        return {nom: quantite}
+    quantite_produite = sous_recette["resultQuantity"].iloc[0]
+    nb_crafts = quantite / quantite_produite
+    composants = {}
+    for _, ligne in sous_recette.iterrows():
+        for cle, valeur in composants_bruts(
+            ligne["ingredientItemId"], ligne["quantity"] * nb_crafts, ligne["ingredientName"], ingredients, vus | {item_id}
+        ).items():
+            composants[cle] = composants.get(cle, 0) + valeur
+    return composants
+
+
+def composants_bruts_recette(recipe_id: str, quantite: float, ingredients: pd.DataFrame) -> dict:
+    """Matériaux bruts (non craftés) nécessaires pour fabriquer `quantite` fois une recette, en
+    descendant récursivement dans les ingrédients eux-mêmes craftés (ex: lingots)."""
+    composants = {}
+    for _, ligne in ingredients[ingredients["recipeId"] == recipe_id].iterrows():
+        for nom, qte in composants_bruts(
+            ligne["ingredientItemId"], ligne["quantity"] * quantite, ligne["ingredientName"], ingredients
+        ).items():
+            composants[nom] = composants.get(nom, 0) + qte
+    return composants
+
+
 def effort_ingredient(
     item_id: str, quantite: float, rarete: str | None, ingredients: pd.DataFrame, probabilites: dict, vus: frozenset = frozenset()
 ) -> float:
