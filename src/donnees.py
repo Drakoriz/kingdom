@@ -19,6 +19,20 @@ ORDRE_RARETE = ["COMMON", "RARE", "EPIC", "LEGENDARY"]
 
 LIBELLES_SLOTS = {"WEAPON": "Arme", "SHIELD": "Bouclier", "ARMOR": "Armure", "ACCESSORY": "Accessoire"}
 
+LIBELLES_CATEGORIES = {
+    "ore": "Minerai",
+    "wood": "Bois",
+    "fish": "Poisson",
+    "plant": "Plante",
+    "material": "Matériau",
+    "tool": "Outil",
+    "food": "Nourriture",
+    "potion": "Potion",
+    "weapon": "Arme",
+    "armor": "Armure",
+    "accessory": "Accessoire",
+}
+
 LIBELLES_EFFETS = {
     "xpMultiplier": lambda v: f"+{round((v - 1) * 100)} % XP",
     "quantityChance": lambda v: f"+{round(v * 100)} % chance de quantité bonus",

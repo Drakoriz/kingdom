@@ -73,8 +73,9 @@ with onglet_metiers:
                         ses_ingredients["Provenance"] = ses_ingredients["ingredientRegionId"].apply(
                             d.couleur_provenance
                         )
+                        ses_ingredients["Type"] = ses_ingredients["ingredientCategory"].map(d.LIBELLES_CATEGORIES)
                         st.dataframe(
-                            ses_ingredients[["Provenance", "ingredientName", "quantity"]].rename(
+                            ses_ingredients[["Provenance", "ingredientName", "Type", "quantity"]].rename(
                                 columns={"ingredientName": "Ingrédient", "quantity": "Quantité"}
                             ),
                             hide_index=True,
