@@ -209,22 +209,32 @@ def efficacite_xp(xp: float, effort: float) -> float:
     return xp / effort if effort else float("inf")
 
 
-def meilleurs_equipements_pvp(equipements: pd.DataFrame, recettes: pd.DataFrame, metiers: pd.DataFrame) -> pd.DataFrame:
-    """Meilleur équipement (rareté la plus haute, sur-classe) par rôle PvP et par emplacement, avec
-    sa provenance (métier d'artisanat et niveau requis, ou "Non craftable" si obtenu autrement)."""
+def progression_equipements_pvp(equipements: pd.DataFrame, recettes: pd.DataFrame, metiers: pd.DataFrame) -> pd.DataFrame:
+    """Tout l'équipement sur-classe par rôle PvP et par emplacement, du plus faible au plus fort,
+    avec sa provenance (métier d'artisanat et niveau requis, ou "Non craftable" si obtenu autrement)."""
     sur_classe = equipements[(equipements["offClassRatio"] == 1.0) & equipements["slot"].isin(LIBELLES_SLOTS)].copy()
     sur_classe["rang"] = pd.Categorical(sur_classe["rarity"], categories=ORDRE_RARETE, ordered=True)
-    meilleurs = sur_classe.sort_values("rang").groupby(["className", "slot"], as_index=False).tail(1)
 
-    meilleurs = meilleurs.merge(
+    sur_classe = sur_classe.merge(
         recettes[["resultItemId", "station", "requiredJobLevel"]], left_on="itemId", right_on="resultItemId", how="left"
     )
-    meilleurs = meilleurs.merge(metiers[["station", "name"]], on="station", how="left")
-    meilleurs["provenance"] = meilleurs.apply(
+    sur_classe = sur_classe.merge(metiers[["station", "name"]], on="station", how="left")
+    sur_classe["provenance"] = sur_classe.apply(
         lambda r: f"{r['name']} niveau {int(r['requiredJobLevel'])}" if pd.notna(r["name"]) else "Non craftable (autre source)",
         axis=1,
     )
-    return meilleurs
+    return sur_classe.sort_values(["className", "slot", "requiredJobLevel", "rang"])
+
+
+def marquer_accessible(progression: pd.DataFrame, niveaux_metiers: dict) -> pd.DataFrame:
+    """Ajoute une colonne 'accessible' : vrai si l'objet est non craftable (toujours accessible)
+    ou si le métier qui le fabrique a déjà atteint le niveau requis."""
+    progression = progression.copy()
+    progression["accessible"] = progression.apply(
+        lambda r: pd.isna(r["requiredJobLevel"]) or r["requiredJobLevel"] <= niveaux_metiers.get(r["station"], 0),
+        axis=1,
+    )
+    return progression
 
 
 def materiaux_bruts(station: str, ingredients: pd.DataFrame, recettes: pd.DataFrame, niveau_max: int) -> list[str]:

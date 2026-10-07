@@ -235,26 +235,48 @@ with onglet_optimisation:
                 st.markdown(f"- {nb} × {noms_recettes[rid]}")
 
 with onglet_pvp:
-    meilleurs_pvp = d.meilleurs_equipements_pvp(equipements, recettes, metiers)
+    st.caption("Indique le niveau actuel de chaque métier pour voir le meilleur équipement déjà accessible.")
+    niveaux_metiers_pvp = {}
+    for colonne, (_, metier) in zip(st.columns(len(metiers)), metiers.iterrows()):
+        niveaux_metiers_pvp[metier["station"]] = colonne.number_input(
+            metier["name"], min_value=1, max_value=50, value=1, key=f"niveau_pvp_{metier['station']}"
+        )
+
+    progression_pvp = d.progression_equipements_pvp(equipements, recettes, metiers)
+    progression_pvp = d.marquer_accessible(progression_pvp, niveaux_metiers_pvp)
     ordre_slots = list(d.LIBELLES_SLOTS)
 
-    sous_onglets_pvp = st.tabs(sorted(meilleurs_pvp["className"].unique()))
-    for sous_onglet, nom_classe in zip(sous_onglets_pvp, sorted(meilleurs_pvp["className"].unique())):
+    sous_onglets_pvp = st.tabs(sorted(progression_pvp["className"].unique()))
+    for sous_onglet, nom_classe in zip(sous_onglets_pvp, sorted(progression_pvp["className"].unique())):
         with sous_onglet:
-            items_classe = meilleurs_pvp[meilleurs_pvp["className"] == nom_classe].copy()
-            items_classe["ordre"] = items_classe["slot"].map(ordre_slots.index)
-            items_classe = items_classe.sort_values("ordre")
+            items_classe = progression_pvp[progression_pvp["className"] == nom_classe]
 
-            for _, item in items_classe.iterrows():
-                effet = d.effet_combat_lisible(item["statsJson"])
-                with st.container(border=True):
-                    st.markdown(
-                        "<div style='display:flex; justify-content:space-between; "
-                        "align-items:center; gap:1rem;'>"
-                        f"<span><strong>{d.LIBELLES_SLOTS[item['slot']]}</strong> — {item['itemName']} ({item['rarity']})</span>"
-                        f"<span style='white-space:nowrap;'>{item['provenance']}</span>"
-                        "</div>",
-                        unsafe_allow_html=True,
-                    )
-                    if effet:
-                        st.caption(effet)
+            for slot in ordre_slots:
+                items_slot = items_classe[items_classe["slot"] == slot]
+                if items_slot.empty:
+                    continue
+                craftables = items_slot[items_slot["station"].notna()]
+                meilleur_accessible = craftables[craftables["accessible"]].tail(1)
+                id_meilleur = meilleur_accessible["itemId"].iloc[0] if not meilleur_accessible.empty else None
+
+                st.write(f"**{d.LIBELLES_SLOTS[slot]}**")
+                for _, item in items_slot.iterrows():
+                    effet = d.effet_combat_lisible(item["statsJson"])
+                    titre = f"{item['itemName']} ({item['rarity']})"
+                    if item["itemId"] == id_meilleur:
+                        titre += " — meilleur actuellement"
+                    elif item["provenance"] == "Non craftable (autre source)":
+                        titre += " — hors artisanat"
+                    elif not item["accessible"]:
+                        titre += " — à venir"
+                    with st.container(border=True):
+                        st.markdown(
+                            "<div style='display:flex; justify-content:space-between; "
+                            "align-items:center; gap:1rem;'>"
+                            f"<span>{titre}</span>"
+                            f"<span style='white-space:nowrap;'>{item['provenance']}</span>"
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
+                        if effet:
+                            st.caption(effet)
