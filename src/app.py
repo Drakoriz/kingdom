@@ -17,8 +17,8 @@ objets_par_id = d.objets().set_index("id")
 equipements = d.pvp_equipements()
 probabilites_rarete = d.probabilites_rarete()
 
-onglet_metiers, onglet_profils, onglet_recolte, onglet_calculateur, onglet_optimisation = st.tabs(
-    ["Métiers", "Profils", "Ingrédients de récolte", "Calculateur XP", "Optimisation"]
+onglet_metiers, onglet_profils, onglet_recolte, onglet_calculateur, onglet_optimisation, onglet_pvp = st.tabs(
+    ["Métiers", "Profils", "Ingrédients de récolte", "Calculateur XP", "Optimisation", "PvP"]
 )
 
 with onglet_metiers:
@@ -228,3 +228,28 @@ with onglet_optimisation:
             noms_recettes = recettes.set_index("id")["resultName"]
             for rid, nb in sorted(repartition.items(), key=lambda kv: -kv[1]):
                 st.markdown(f"- {nb} × {noms_recettes[rid]}")
+
+with onglet_pvp:
+    meilleurs_pvp = d.meilleurs_equipements_pvp(equipements, recettes, metiers)
+    ordre_slots = list(d.LIBELLES_SLOTS)
+
+    sous_onglets_pvp = st.tabs(sorted(meilleurs_pvp["className"].unique()))
+    for sous_onglet, nom_classe in zip(sous_onglets_pvp, sorted(meilleurs_pvp["className"].unique())):
+        with sous_onglet:
+            items_classe = meilleurs_pvp[meilleurs_pvp["className"] == nom_classe].copy()
+            items_classe["ordre"] = items_classe["slot"].map(ordre_slots.index)
+            items_classe = items_classe.sort_values("ordre")
+
+            for _, item in items_classe.iterrows():
+                effet = d.effet_combat_lisible(item["statsJson"])
+                with st.container(border=True):
+                    st.markdown(
+                        "<div style='display:flex; justify-content:space-between; "
+                        "align-items:center; gap:1rem;'>"
+                        f"<span><strong>{d.LIBELLES_SLOTS[item['slot']]}</strong> — {item['itemName']} ({item['rarity']})</span>"
+                        f"<span style='white-space:nowrap;'>{item['provenance']}</span>"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if effet:
+                        st.caption(effet)

@@ -17,6 +17,8 @@ COULEUR_COMMUNE = "⚪"
 ACTIVITES_RECOLTE = {"fishing": "Pêche", "mining": "Minage", "woodcutting": "Coupe", "farming": "Culture"}
 ORDRE_RARETE = ["COMMON", "RARE", "EPIC", "LEGENDARY"]
 
+LIBELLES_SLOTS = {"WEAPON": "Arme", "SHIELD": "Bouclier", "ARMOR": "Armure", "ACCESSORY": "Accessoire"}
+
 LIBELLES_EFFETS = {
     "xpMultiplier": lambda v: f"+{round((v - 1) * 100)} % XP",
     "quantityChance": lambda v: f"+{round(v * 100)} % chance de quantité bonus",
@@ -205,6 +207,24 @@ def xp_total_recette(recipe_id: str, ingredients: pd.DataFrame, recettes: pd.Dat
 def efficacite_xp(xp: float, effort: float) -> float:
     """XP gagné par unité d'effort de récolte (la fabrication elle-même est instantanée)."""
     return xp / effort if effort else float("inf")
+
+
+def meilleurs_equipements_pvp(equipements: pd.DataFrame, recettes: pd.DataFrame, metiers: pd.DataFrame) -> pd.DataFrame:
+    """Meilleur équipement (rareté la plus haute, sur-classe) par rôle PvP et par emplacement, avec
+    sa provenance (métier d'artisanat et niveau requis, ou "Non craftable" si obtenu autrement)."""
+    sur_classe = equipements[(equipements["offClassRatio"] == 1.0) & equipements["slot"].isin(LIBELLES_SLOTS)].copy()
+    sur_classe["rang"] = pd.Categorical(sur_classe["rarity"], categories=ORDRE_RARETE, ordered=True)
+    meilleurs = sur_classe.sort_values("rang").groupby(["className", "slot"], as_index=False).tail(1)
+
+    meilleurs = meilleurs.merge(
+        recettes[["resultItemId", "station", "requiredJobLevel"]], left_on="itemId", right_on="resultItemId", how="left"
+    )
+    meilleurs = meilleurs.merge(metiers[["station", "name"]], on="station", how="left")
+    meilleurs["provenance"] = meilleurs.apply(
+        lambda r: f"{r['name']} niveau {int(r['requiredJobLevel'])}" if pd.notna(r["name"]) else "Non craftable (autre source)",
+        axis=1,
+    )
+    return meilleurs
 
 
 def materiaux_bruts(station: str, ingredients: pd.DataFrame, recettes: pd.DataFrame, niveau_max: int) -> list[str]:
