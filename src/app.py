@@ -45,7 +45,8 @@ with onglet_metiers:
                 recettes_metier = recettes_metier.sort_values("efficacite", ascending=False)
 
             for _, recette in recettes_metier.iterrows():
-                titre = f"Niveau {recette['requiredJobLevel']} — {recette['resultName']} (+{int(recette['xp'])} XP)"
+                rarete = objets_par_id.loc[recette["resultItemId"], "rarityLabel"]
+                titre = f"Niveau {recette['requiredJobLevel']} — {recette['resultName']} ({rarete}) (+{int(recette['xp'])} XP)"
                 if tri != "Niveau requis":
                     titre += f" — {recette['efficacite']:.1f} XP/effort"
                 effet = d.effet_objet(recette["resultItemId"], objets_par_id, equipements) or d.usage_materiau(
@@ -116,17 +117,21 @@ with onglet_recolte:
             objets_activite["Métiers"] = objets_activite["id"].apply(
                 lambda item_id: d.metiers_utilisateurs(item_id, ingredients, metiers)
             )
+            objets_activite["Provenance"] = objets_activite["regionId"].apply(d.couleur_provenance)
 
+            recherche = st.text_input("Rechercher un ingrédient", key=f"recherche_{activite}")
             filtre_metier = st.selectbox(
                 "Filtrer par métier",
                 ["Tous"] + sorted(metiers["name"]),
                 key=f"filtre_metier_{activite}",
             )
+            if recherche:
+                objets_activite = objets_activite[objets_activite["name"].str.contains(recherche, case=False)]
             if filtre_metier != "Tous":
                 objets_activite = objets_activite[objets_activite["Métiers"].str.contains(filtre_metier)]
 
             st.dataframe(
-                objets_activite[["name", "rarityLabel", "Métiers"]].rename(
+                objets_activite[["Provenance", "name", "rarityLabel", "Métiers"]].rename(
                     columns={"name": "Ingrédient", "rarityLabel": "Rareté"}
                 ),
                 hide_index=True,
