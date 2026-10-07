@@ -281,3 +281,27 @@ with onglet_pvp:
                         )
                         if effet:
                             st.caption(effet)
+
+                        if item["provenance"] != "Non craftable (autre source)":
+                            cle_ouverte_pvp = f"ouvert_pvp_{item['itemId']}"
+                            st.session_state.setdefault(cle_ouverte_pvp, False)
+                            ouvert_pvp = st.session_state[cle_ouverte_pvp]
+                            if st.button(
+                                "Masquer les ingrédients" if ouvert_pvp else "Voir les ingrédients",
+                                key=f"bouton_pvp_{nom_classe}_{slot}_{item['itemId']}",
+                            ):
+                                st.session_state[cle_ouverte_pvp] = not ouvert_pvp
+
+                            if st.session_state[cle_ouverte_pvp]:
+                                ses_ingredients = ingredients[ingredients["recipeId"] == item["itemId"]].copy()
+                                ses_ingredients["Provenance"] = ses_ingredients["ingredientRegionId"].apply(
+                                    d.couleur_provenance
+                                )
+                                ses_ingredients["Type"] = ses_ingredients["ingredientCategory"].map(d.LIBELLES_CATEGORIES)
+                                st.dataframe(
+                                    ses_ingredients[["Provenance", "ingredientName", "Type", "quantity"]].rename(
+                                        columns={"ingredientName": "Ingrédient", "quantity": "Quantité"}
+                                    ),
+                                    hide_index=True,
+                                    width="stretch",
+                                )
