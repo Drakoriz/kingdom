@@ -159,6 +159,22 @@ def probabilites_rarete() -> dict:
     return dict(zip(raretes["id"], raretes["weightPercent"]))
 
 
+def economie_config() -> pd.Series:
+    """Paramètres économiques du jeu (taxes, taux de revente...), indexés par chemin de config."""
+    return charger_feuille("Economy Config").set_index("path")["value"]
+
+
+def rentabilite_vente(probabilites: dict, taux_revente: float) -> pd.DataFrame:
+    """Rentabilité de revente au marchand royal des ressources récoltables : prix de vente
+    (baseValue x taux de revente) pondéré par la probabilité de rareté, pour comparer l'or gagné
+    par effort de récolte entre objets communs et rares."""
+    vendables = objets_recoltables()
+    vendables = vendables[vendables["shopSellable"] == True].copy()
+    vendables["prixVente"] = vendables["baseValue"] * taux_revente
+    vendables["orParEffort"] = vendables.apply(lambda r: r["prixVente"] * probabilites.get(r["rarity"], 1), axis=1)
+    return vendables.sort_values("orParEffort", ascending=False)
+
+
 def effort_ingredient(
     item_id: str, quantite: float, rarete: str | None, ingredients: pd.DataFrame, probabilites: dict, vus: frozenset = frozenset()
 ) -> float:

@@ -17,8 +17,8 @@ objets_par_id = d.objets().set_index("id")
 equipements = d.pvp_equipements()
 probabilites_rarete = d.probabilites_rarete()
 
-onglet_metiers, onglet_profils, onglet_recolte, onglet_calculateur, onglet_optimisation, onglet_pvp = st.tabs(
-    ["Métiers", "Profils", "Ingrédients de récolte", "Calculateur XP", "Optimisation", "PvP"]
+onglet_metiers, onglet_profils, onglet_recolte, onglet_calculateur, onglet_optimisation, onglet_pvp, onglet_revente = (
+    st.tabs(["Métiers", "Profils", "Ingrédients de récolte", "Calculateur XP", "Optimisation", "PvP", "Revente"])
 )
 
 with onglet_metiers:
@@ -305,3 +305,45 @@ with onglet_pvp:
                                     hide_index=True,
                                     width="stretch",
                                 )
+
+with onglet_revente:
+    economie = d.economie_config()
+    taux_revente = float(economie["royalShop.defaultPlayerSellMultiplier"])
+    taux_achat = float(economie["royalShop.defaultPlayerBuyMultiplier"])
+    taux_taxe = float(economie["market.taxRate"])
+    duree_annonce_jours = float(economie["market.listingLifetimeSeconds"]) / 86400
+
+    st.write("**Comment marche l'économie**")
+    st.markdown(
+        f"- Le marchand royal rachète tout objet vendable à **{taux_revente:.0%}** de sa valeur de base, "
+        "taux fixe, identique pour tous les objets (pas de bonus pour les objets rares).\n"
+        f"- Acheter au marchand royal coûte **{taux_achat:.0%}** de la valeur de base, modulé par le stock "
+        "actuel (forte demande = plus cher, surstock = moins cher).\n"
+        f"- Le marché entre joueurs prélève une **taxe de {taux_taxe:.0%}** sur chaque vente, mais permet "
+        "de fixer son propre prix, contrairement au taux fixe du marchand royal.\n"
+        f"- Une annonce sur le marché reste active **{duree_annonce_jours:.0f} jours** avant d'expirer.\n"
+        "- Un objet légendaire vaut plus cher qu'un commun, mais pas proportionnellement à sa rareté : "
+        "farmer du commun en volume rapporte souvent plus par effort que chasser le rare (voir le "
+        "classement ci-dessous)."
+    )
+
+    rentabilite = d.rentabilite_vente(probabilites_rarete, taux_revente)
+    rentabilite["Provenance"] = rentabilite["regionId"].apply(d.couleur_provenance)
+
+    filtre_activite = st.selectbox("Filtrer par activité", ["Toutes"] + list(d.ACTIVITES_RECOLTE.values()))
+    if filtre_activite != "Toutes":
+        activite_id = next(k for k, v in d.ACTIVITES_RECOLTE.items() if v == filtre_activite)
+        rentabilite = rentabilite[rentabilite["gatheringType"] == activite_id]
+
+    st.dataframe(
+        rentabilite[["Provenance", "name", "rarityLabel", "prixVente", "orParEffort"]].rename(
+            columns={
+                "name": "Ingrédient",
+                "rarityLabel": "Rareté",
+                "prixVente": "Prix de vente",
+                "orParEffort": "Or par effort",
+            }
+        ),
+        hide_index=True,
+        width="stretch",
+    )
