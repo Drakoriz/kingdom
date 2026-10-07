@@ -159,6 +159,19 @@ def probabilites_rarete() -> dict:
     return dict(zip(raretes["id"], raretes["weightPercent"]))
 
 
+def libelles_rarete() -> dict:
+    """Libellé français + emoji de chaque rareté (feuille Rarities), ex. {"COMMON": "⚪ Commun"}."""
+    raretes = charger_feuille("Rarities")
+    return {row["id"]: f"{row['emoji']} {row['label']}" for _, row in raretes.iterrows()}
+
+
+def courbe_recolte() -> pd.DataFrame:
+    """Probabilité de chaque rareté selon le niveau du métier de récolte (feuille Gather Curve),
+    pour voir comment les chances évoluent en montant de niveau (valable pour tous les métiers de récolte)."""
+    courbe = charger_feuille("Gather Curve")
+    return courbe.pivot(index="level", columns="rarity", values="weightPercent")[ORDRE_RARETE]
+
+
 def economie_config() -> pd.Series:
     """Paramètres économiques du jeu (taxes, taux de revente...), indexés par chemin de config."""
     return charger_feuille("Economy Config").set_index("path")["value"]

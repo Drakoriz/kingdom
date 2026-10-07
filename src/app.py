@@ -17,8 +17,17 @@ objets_par_id = d.objets().set_index("id")
 equipements = d.pvp_equipements()
 probabilites_rarete = d.probabilites_rarete()
 
-onglet_metiers, onglet_profils, onglet_recolte, onglet_calculateur, onglet_optimisation, onglet_pvp, onglet_revente = (
-    st.tabs(["Métiers", "Profils", "Ingrédients de récolte", "Calculateur XP", "Optimisation", "PvP", "Revente"])
+(
+    onglet_metiers,
+    onglet_profils,
+    onglet_recolte,
+    onglet_progression,
+    onglet_calculateur,
+    onglet_optimisation,
+    onglet_pvp,
+    onglet_revente,
+) = st.tabs(
+    ["Métiers", "Profils", "Ingrédients de récolte", "Progression", "Calculateur XP", "Optimisation", "PvP", "Revente"]
 )
 
 with onglet_metiers:
@@ -138,6 +147,24 @@ with onglet_recolte:
                 hide_index=True,
                 width="stretch",
             )
+
+with onglet_progression:
+    st.caption(
+        "Plus le niveau d'un métier de récolte augmente, plus les raretés RARE/EPIC/LEGENDARY "
+        "deviennent probables (et COMMON diminue). Cette courbe est la même pour tous les métiers "
+        "de récolte (pêche, minage, coupe, culture)."
+    )
+
+    courbe = d.courbe_recolte() * 100
+    libelles = d.libelles_rarete()
+    courbe_affichee = courbe.rename(columns=libelles)
+
+    st.line_chart(courbe_affichee)
+    st.dataframe(
+        courbe_affichee.round(2).rename_axis("Niveau").reset_index(),
+        hide_index=True,
+        width="stretch",
+    )
 
 with onglet_calculateur:
     niveaux_xp = d.charger_feuille("Levels XP")
