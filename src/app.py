@@ -327,6 +327,7 @@ with onglet_revente:
         "classement ci-dessous)."
     )
 
+    st.write("**Ressources brutes**")
     rentabilite = d.rentabilite_vente(probabilites_rarete, taux_revente)
     rentabilite["Provenance"] = rentabilite["regionId"].apply(d.couleur_provenance)
 
@@ -339,6 +340,29 @@ with onglet_revente:
         rentabilite[["Provenance", "name", "rarityLabel", "prixVente", "orParEffort"]].rename(
             columns={
                 "name": "Ingrédient",
+                "rarityLabel": "Rareté",
+                "prixVente": "Prix de vente",
+                "orParEffort": "Or par effort",
+            }
+        ),
+        hide_index=True,
+        width="stretch",
+    )
+
+    st.write("**Objets craftés**")
+    rentabilite_craftee = d.rentabilite_vente_craftee(recettes, ingredients, probabilites_rarete, taux_revente, objets_par_id)
+    rentabilite_craftee["Métier"] = rentabilite_craftee["station"].map(metiers.set_index("station")["name"])
+
+    filtre_metier_revente = st.selectbox(
+        "Filtrer par métier", ["Tous"] + sorted(metiers["name"]), key="filtre_metier_revente"
+    )
+    if filtre_metier_revente != "Tous":
+        rentabilite_craftee = rentabilite_craftee[rentabilite_craftee["Métier"] == filtre_metier_revente]
+
+    st.dataframe(
+        rentabilite_craftee[["Métier", "resultName", "rarityLabel", "prixVente", "orParEffort"]].rename(
+            columns={
+                "resultName": "Objet",
                 "rarityLabel": "Rareté",
                 "prixVente": "Prix de vente",
                 "orParEffort": "Or par effort",

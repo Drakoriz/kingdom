@@ -175,6 +175,23 @@ def rentabilite_vente(probabilites: dict, taux_revente: float) -> pd.DataFrame:
     return vendables.sort_values("orParEffort", ascending=False)
 
 
+def rentabilite_vente_craftee(
+    recettes: pd.DataFrame, ingredients: pd.DataFrame, probabilites: dict, taux_revente: float, objets_par_id: pd.DataFrame
+) -> pd.DataFrame:
+    """Rentabilité de revente au marchand royal des objets craftés : prix de vente (baseValue x
+    taux de revente) divisé par l'effort de récolte nécessaire à leur fabrication (récursif,
+    jusqu'aux matériaux bruts), pour comparer avec la rentabilité des ressources brutes."""
+    craftes = recettes.copy()
+    craftes["shopSellable"] = craftes["resultItemId"].map(objets_par_id["shopSellable"])
+    craftes["baseValue"] = craftes["resultItemId"].map(objets_par_id["baseValue"])
+    craftes["rarityLabel"] = craftes["resultItemId"].map(objets_par_id["rarityLabel"])
+    craftes = craftes[craftes["shopSellable"] == True].copy()
+    craftes["prixVente"] = craftes["baseValue"] * taux_revente
+    craftes["effort"] = craftes["id"].apply(lambda rid: effort_recette(rid, ingredients, probabilites))
+    craftes["orParEffort"] = craftes.apply(lambda r: efficacite_xp(r["prixVente"], r["effort"]), axis=1)
+    return craftes.sort_values("orParEffort", ascending=False)
+
+
 def effort_ingredient(
     item_id: str, quantite: float, rarete: str | None, ingredients: pd.DataFrame, probabilites: dict, vus: frozenset = frozenset()
 ) -> float:
