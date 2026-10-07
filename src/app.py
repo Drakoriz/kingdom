@@ -377,4 +377,12 @@ with onglet_revente:
     st.write(f"Pour atteindre {objectif_or:,.0f} or, au choix :".replace(",", " "))
     for _, item in top5_craftes.iterrows():
         nb_crafts = math.ceil(objectif_or / item["prixVente"])
-        st.markdown(f"- {nb_crafts} × {item['resultName']} ({item['orParEffort']:.1f} or/effort)")
+        ses_ingredients = ingredients[ingredients["recipeId"] == item["id"]]
+        detail = " + ".join(
+            f"{math.ceil(ligne['quantity'] * nb_crafts)} {ligne['ingredientName']}"
+            for _, ligne in ses_ingredients.iterrows()
+        )
+        st.markdown(
+            f"- {nb_crafts} × {item['resultName']} ({detail}) "
+            f"= {item['prixVente'] * nb_crafts:,.0f} or ({item['orParEffort']:.1f} or/effort)".replace(",", " ")
+        )
