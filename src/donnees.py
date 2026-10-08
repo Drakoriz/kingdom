@@ -16,6 +16,7 @@ COULEUR_COMMUNE = "⚪"
 
 ACTIVITES_RECOLTE = {"fishing": "Pêche", "mining": "Minage", "woodcutting": "Coupe", "farming": "Culture"}
 ORDRE_RARETE = ["COMMON", "RARE", "EPIC", "LEGENDARY"]
+MAISON_JOUEUR = "GREEN"
 
 LIBELLES_SLOTS = {"WEAPON": "Arme", "SHIELD": "Bouclier", "ARMOR": "Armure", "ACCESSORY": "Accessoire"}
 
@@ -177,29 +178,68 @@ def economie_config() -> pd.Series:
     return charger_feuille("Economy Config").set_index("path")["value"]
 
 
-def rentabilite_vente(probabilites: dict, taux_revente: float) -> pd.DataFrame:
+def multiplicateur_regional(region_id: str | None, maison: str = MAISON_JOUEUR) -> float:
+    """Bonus/malus de revente au marchand royal selon l'origine régionale d'une ressource par
+    rapport à sa propre maison (Economy Config, regionalTrade.*) : une ressource étrangère se
+    revend plus cher (x1.2) qu'une ressource de sa propre maison ou universelle."""
+    economie = economie_config()
+    if pd.isna(region_id):
+        return float(economie["regionalTrade.neutralMultiplier"])
+    if region_id == maison:
+        return float(economie["regionalTrade.homeMultiplier"])
+    return float(economie["regionalTrade.foreignMultiplier"])
+
+
+def niveaux_demande() -> list[dict]:
+    """Paliers de demande du marchand royal (Economy Config, royalShop.stockDemand), qui modulent
+    aussi le prix de revente selon le stock actuel du marchand. Pas de données de stock en temps
+    réel dans le classeur, donc à choisir manuellement selon ce qu'on observe en jeu."""
+    economie = economie_config()
+    niveaux, i = [], 0
+    while f"royalShop.stockDemand[{i}].multiplier" in economie.index:
+        niveaux.append({
+            "label": economie[f"royalShop.stockDemand[{i}].label"],
+            "emoji": economie[f"royalShop.stockDemand[{i}].emoji"],
+            "multiplicateur": float(economie[f"royalShop.stockDemand[{i}].multiplier"]),
+        })
+        i += 1
+    return niveaux
+
+
+def rentabilite_vente(probabilites: dict, taux_revente: float, multiplicateur_demande: float = 1.0) -> pd.DataFrame:
     """Rentabilité de revente au marchand royal des ressources récoltables : prix de vente
-    (baseValue x taux de revente) pondéré par la probabilité de rareté, pour comparer l'or gagné
-    par effort de récolte entre objets communs et rares."""
+    (baseValue x taux de revente x bonus régional x demande actuelle) pondéré par la probabilité
+    de rareté, pour comparer l'or gagné par effort de récolte entre objets communs et rares."""
     vendables = objets_recoltables()
     vendables = vendables[vendables["shopSellable"] == True].copy()
-    vendables["prixVente"] = vendables["baseValue"] * taux_revente
+    vendables["multiplicateurRegional"] = vendables["regionId"].apply(multiplicateur_regional)
+    vendables["prixVente"] = vendables["baseValue"] * taux_revente * vendables["multiplicateurRegional"] * multiplicateur_demande
     vendables["orParEffort"] = vendables.apply(lambda r: r["prixVente"] * probabilites.get(r["rarity"], 1), axis=1)
     return vendables.sort_values("orParEffort", ascending=False)
 
 
 def rentabilite_vente_craftee(
-    recettes: pd.DataFrame, ingredients: pd.DataFrame, probabilites: dict, taux_revente: float, objets_par_id: pd.DataFrame
+    recettes: pd.DataFrame,
+    ingredients: pd.DataFrame,
+    probabilites: dict,
+    taux_revente: float,
+    objets_par_id: pd.DataFrame,
+    multiplicateur_demande: float = 1.0,
 ) -> pd.DataFrame:
     """Rentabilité de revente au marchand royal des objets craftés : prix de vente (baseValue x
-    taux de revente) divisé par l'effort de récolte nécessaire à leur fabrication (récursif,
-    jusqu'aux matériaux bruts), pour comparer avec la rentabilité des ressources brutes."""
+    taux de revente x bonus régional x demande actuelle) divisé par l'effort de récolte nécessaire
+    à leur fabrication (récursif, jusqu'aux matériaux bruts), pour comparer avec la rentabilité des
+    ressources brutes. Les objets craftés n'ont pas de région propre (bonus toujours neutre)."""
     craftes = recettes.copy()
     craftes["shopSellable"] = craftes["resultItemId"].map(objets_par_id["shopSellable"])
     craftes["baseValue"] = craftes["resultItemId"].map(objets_par_id["baseValue"])
     craftes["rarityLabel"] = craftes["resultItemId"].map(objets_par_id["rarityLabel"])
+    craftes["regionId"] = craftes["resultItemId"].map(objets_par_id["regionId"])
     craftes = craftes[craftes["shopSellable"] == True].copy()
-    craftes["prixVente"] = craftes["baseValue"] * taux_revente * craftes["resultQuantity"]
+    craftes["multiplicateurRegional"] = craftes["regionId"].apply(multiplicateur_regional)
+    craftes["prixVente"] = (
+        craftes["baseValue"] * taux_revente * craftes["resultQuantity"] * craftes["multiplicateurRegional"] * multiplicateur_demande
+    )
     craftes["effort"] = craftes["id"].apply(lambda rid: effort_recette(rid, ingredients, probabilites))
     craftes["orParEffort"] = craftes.apply(lambda r: efficacite_xp(r["prixVente"], r["effort"]), axis=1)
     return craftes.sort_values("orParEffort", ascending=False)

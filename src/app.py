@@ -348,10 +348,18 @@ with onglet_revente:
     taux_taxe = float(economie["market.taxRate"])
     duree_annonce_jours = float(economie["market.listingLifetimeSeconds"]) / 86400
 
+    niveaux_demande = d.niveaux_demande()
+    libelles_demande = [f"{n['emoji']} {n['label']} (x{n['multiplicateur']:g})" for n in niveaux_demande]
+    index_normal = next(i for i, n in enumerate(niveaux_demande) if n["multiplicateur"] == 1)
+    choix_demande = st.selectbox("Niveau de demande actuel du marchand", libelles_demande, index=index_normal)
+    multiplicateur_demande = niveaux_demande[libelles_demande.index(choix_demande)]["multiplicateur"]
+
     st.write("**Comment marche l'économie**")
     st.markdown(
         f"- Le marchand royal rachète tout objet vendable à **{taux_revente:.0%}** de sa valeur de base, "
-        "taux fixe, identique pour tous les objets (pas de bonus pour les objets rares).\n"
+        "modulé par deux bonus multiplicatifs : la demande actuelle du marchand (x0.8 à x1.1 selon son "
+        "stock, choisie ci-dessus faute de stock en temps réel dans ces données) et l'origine de la "
+        "ressource (**x1.2 si elle est étrangère** à ta maison, x1 si elle est de ta maison ou universelle).\n"
         f"- Acheter au marchand royal coûte **{taux_achat:.0%}** de la valeur de base, modulé par le stock "
         "actuel (forte demande = plus cher, surstock = moins cher).\n"
         f"- Le marché entre joueurs prélève une **taxe de {taux_taxe:.0%}** sur chaque vente, mais permet "
@@ -363,8 +371,9 @@ with onglet_revente:
     )
 
     st.write("**Ressources brutes**")
-    rentabilite = d.rentabilite_vente(probabilites_rarete, taux_revente)
+    rentabilite = d.rentabilite_vente(probabilites_rarete, taux_revente, multiplicateur_demande)
     rentabilite["Provenance"] = rentabilite["regionId"].apply(d.couleur_provenance)
+    rentabilite["Bonus région"] = rentabilite["multiplicateurRegional"].apply(lambda m: f"x{m:g}")
 
     filtre_activite = st.selectbox("Filtrer par activité", ["Toutes"] + list(d.ACTIVITES_RECOLTE.values()))
     if filtre_activite != "Toutes":
@@ -372,7 +381,7 @@ with onglet_revente:
         rentabilite = rentabilite[rentabilite["gatheringType"] == activite_id]
 
     st.dataframe(
-        rentabilite[["Provenance", "name", "rarityLabel", "prixVente", "orParEffort"]].rename(
+        rentabilite[["Provenance", "name", "rarityLabel", "Bonus région", "prixVente", "orParEffort"]].rename(
             columns={
                 "name": "Ingrédient",
                 "rarityLabel": "Rareté",
@@ -386,7 +395,9 @@ with onglet_revente:
 
     st.write("**Objets craftés**")
     valeur_par_nom = d.objets().set_index("name")["baseValue"]
-    rentabilite_craftee = d.rentabilite_vente_craftee(recettes, ingredients, probabilites_rarete, taux_revente, objets_par_id)
+    rentabilite_craftee = d.rentabilite_vente_craftee(
+        recettes, ingredients, probabilites_rarete, taux_revente, objets_par_id, multiplicateur_demande
+    )
     rentabilite_craftee["Métier"] = rentabilite_craftee["station"].map(metiers.set_index("station")["name"])
     rentabilite_craftee["coutBrut"] = rentabilite_craftee["id"].apply(
         lambda rid: d.cout_brut_recette(rid, ingredients, valeur_par_nom, taux_achat)
