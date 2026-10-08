@@ -26,8 +26,19 @@ probabilites_rarete = d.probabilites_rarete()
     onglet_optimisation,
     onglet_pvp,
     onglet_revente,
+    onglet_trade,
 ) = st.tabs(
-    ["Métiers", "Profils", "Ingrédients de récolte", "Progression", "Calculateur XP", "Optimisation", "PvP", "Revente"]
+    [
+        "Métiers",
+        "Profils",
+        "Ingrédients de récolte",
+        "Progression",
+        "Calculateur XP",
+        "Optimisation",
+        "PvP",
+        "Revente",
+        "Trade",
+    ]
 )
 
 with onglet_metiers:
@@ -374,8 +385,15 @@ with onglet_revente:
     )
 
     st.write("**Objets craftés**")
+    valeur_par_nom = d.objets().set_index("name")["baseValue"]
     rentabilite_craftee = d.rentabilite_vente_craftee(recettes, ingredients, probabilites_rarete, taux_revente, objets_par_id)
     rentabilite_craftee["Métier"] = rentabilite_craftee["station"].map(metiers.set_index("station")["name"])
+    rentabilite_craftee["coutBrut"] = rentabilite_craftee["id"].apply(
+        lambda rid: d.cout_brut_recette(rid, ingredients, valeur_par_nom, taux_achat)
+    )
+    rentabilite_craftee["coutProduction"] = rentabilite_craftee["id"].apply(
+        lambda rid: d.cout_production_recette(rid, ingredients, valeur_par_nom, taux_achat)
+    )
 
     filtre_metier_revente = st.selectbox(
         "Filtrer par métier", ["Tous"] + sorted(metiers["name"]), key="filtre_metier_revente"
@@ -384,16 +402,25 @@ with onglet_revente:
         rentabilite_craftee = rentabilite_craftee[rentabilite_craftee["Métier"] == filtre_metier_revente]
 
     st.dataframe(
-        rentabilite_craftee[["Métier", "resultName", "rarityLabel", "prixVente", "orParEffort"]].rename(
+        rentabilite_craftee[
+            ["Métier", "resultName", "rarityLabel", "prixVente", "coutBrut", "coutProduction", "orParEffort"]
+        ].rename(
             columns={
                 "resultName": "Objet",
                 "rarityLabel": "Rareté",
                 "prixVente": "Prix de vente",
+                "coutBrut": "Coût brut",
+                "coutProduction": "Coût de production",
                 "orParEffort": "Or par effort",
             }
         ),
         hide_index=True,
         width="stretch",
+    )
+    st.caption(
+        "Coût brut = acheter au marchand royal les ingrédients tels quels listés dans la recette. "
+        "Coût de production = acheter uniquement les matériaux bruts (décomposés jusqu'au bout) et fabriquer "
+        "soi-même les intermédiaires comme les lingots : presque toujours moins cher que le coût brut."
     )
 
     objectif_or = st.number_input("Objectif en or", min_value=1, value=15000, step=1000)
@@ -407,3 +434,32 @@ with onglet_revente:
             f"- {nb_crafts} × {item['resultName']} ({detail}) "
             f"= {item['prixVente'] * nb_crafts:,.0f} or ({item['orParEffort']:.1f} or/effort)".replace(",", " ")
         )
+
+with onglet_trade:
+    st.caption("Compare la valeur (baseValue) de deux lots d'objets pour vérifier si un échange est équilibré.")
+    valeur_par_nom = d.objets().set_index("name")["baseValue"]
+    noms_objets = sorted(valeur_par_nom.index)
+
+    def saisir_lot(colonne, cle):
+        colonne.write(f"**Lot {cle}**")
+        choix = colonne.multiselect("Objets", noms_objets, key=f"objets_{cle}")
+        valeur_totale = 0
+        for nom in choix:
+            quantite = colonne.number_input(nom, min_value=1, value=1, key=f"qte_{cle}_{nom}")
+            valeur_totale += quantite * valeur_par_nom[nom]
+        colonne.metric("Valeur totale", f"{valeur_totale:,.0f} or".replace(",", " "))
+        return valeur_totale
+
+    colonne_gauche, colonne_droite = st.columns(2)
+    valeur_a = saisir_lot(colonne_gauche, "A")
+    valeur_b = saisir_lot(colonne_droite, "B")
+
+    ecart = valeur_a - valeur_b
+    if valeur_a == 0 and valeur_b == 0:
+        st.info("Ajoute des objets des deux côtés pour comparer.")
+    elif ecart == 0:
+        st.success("Échange équilibré, les deux lots ont la même valeur.")
+    elif ecart > 0:
+        st.warning(f"Le lot A vaut {ecart:,.0f} or de plus que le lot B.".replace(",", " "))
+    else:
+        st.warning(f"Le lot B vaut {-ecart:,.0f} or de plus que le lot A.".replace(",", " "))

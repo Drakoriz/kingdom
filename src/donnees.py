@@ -237,6 +237,20 @@ def composants_bruts_recette(recipe_id: str, quantite: float, ingredients: pd.Da
     return composants
 
 
+def cout_brut_recette(recipe_id: str, ingredients: pd.DataFrame, valeur_par_nom: pd.Series, taux_achat: float) -> float:
+    """Coût pour acheter au marchand royal les ingrédients listés directement dans la recette
+    (sans décomposer les intermédiaires comme les lingots)."""
+    lignes = ingredients[ingredients["recipeId"] == recipe_id]
+    return sum(ligne["quantity"] * valeur_par_nom[ligne["ingredientName"]] * taux_achat for _, ligne in lignes.iterrows())
+
+
+def cout_production_recette(recipe_id: str, ingredients: pd.DataFrame, valeur_par_nom: pd.Series, taux_achat: float) -> float:
+    """Coût pour acheter au marchand royal uniquement les matériaux bruts (décomposés jusqu'au bout),
+    à la place de les récolter soi-même."""
+    composants = composants_bruts_recette(recipe_id, 1, ingredients)
+    return sum(qte * valeur_par_nom[nom] * taux_achat for nom, qte in composants.items())
+
+
 def effort_ingredient(
     item_id: str, quantite: float, rarete: str | None, ingredients: pd.DataFrame, probabilites: dict, vus: frozenset = frozenset()
 ) -> float:
