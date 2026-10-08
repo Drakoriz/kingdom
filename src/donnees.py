@@ -199,7 +199,7 @@ def rentabilite_vente_craftee(
     craftes["baseValue"] = craftes["resultItemId"].map(objets_par_id["baseValue"])
     craftes["rarityLabel"] = craftes["resultItemId"].map(objets_par_id["rarityLabel"])
     craftes = craftes[craftes["shopSellable"] == True].copy()
-    craftes["prixVente"] = craftes["baseValue"] * taux_revente
+    craftes["prixVente"] = craftes["baseValue"] * taux_revente * craftes["resultQuantity"]
     craftes["effort"] = craftes["id"].apply(lambda rid: effort_recette(rid, ingredients, probabilites))
     craftes["orParEffort"] = craftes.apply(lambda r: efficacite_xp(r["prixVente"], r["effort"]), axis=1)
     return craftes.sort_values("orParEffort", ascending=False)
