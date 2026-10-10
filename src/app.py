@@ -27,6 +27,7 @@ probabilites_rarete = d.probabilites_rarete()
     onglet_pvp,
     onglet_revente,
     onglet_trade,
+    onglet_marche,
 ) = st.tabs(
     [
         "Métiers",
@@ -38,6 +39,7 @@ probabilites_rarete = d.probabilites_rarete()
         "PvP",
         "Revente",
         "Trade",
+        "Marché",
     ]
 )
 
@@ -474,3 +476,63 @@ with onglet_trade:
         st.warning(f"Le lot A vaut {ecart:,.0f} or de plus que le lot B.".replace(",", " "))
     else:
         st.warning(f"Le lot B vaut {-ecart:,.0f} or de plus que le lot A.".replace(",", " "))
+
+with onglet_marche:
+    st.caption(
+        "Colle un relevé de stock du marchand royal (format Discord, lignes '* Nom : quantité') pour "
+        "calculer les prix de vente réels du moment. Les objets craftés ne sont pas soumis au stock, "
+        "ils se vendent toujours au taux plein (non soumis au palier de demande)."
+    )
+    nouveau_releve = st.text_area("Relevé de stock à coller", height=150)
+    if st.button("Mettre à jour le stock"):
+        nouveau_stock = d.parser_stock_marchand(nouveau_releve)
+        if nouveau_stock:
+            d.sauvegarder_stock_marchand(nouveau_stock)
+            st.success(f"{len(nouveau_stock)} objets mis à jour.")
+        else:
+            st.warning("Aucun objet reconnu dans le texte collé.")
+
+    stock = d.charger_stock_marchand()
+    if not stock:
+        st.info("Aucun relevé de stock enregistré pour l'instant.")
+    else:
+        st.write(f"**Ressources brutes encore worth vendre** (stock connu pour {len(stock)} objets)")
+        rentabilite_stock = d.rentabilite_vente_stock(probabilites_rarete, taux_revente, stock)
+        rentabilite_stock["Provenance"] = rentabilite_stock["regionId"].apply(d.couleur_provenance)
+        rentabilite_stock["Bonus région"] = rentabilite_stock["multiplicateurRegional"].apply(lambda m: f"x{m:g}")
+        rentabilite_stock["Palier"] = rentabilite_stock["multiplicateurDemande"].apply(lambda m: f"x{m:g}")
+        st.dataframe(
+            rentabilite_stock[
+                ["Provenance", "name", "rarityLabel", "stockActuel", "Bonus région", "Palier", "prixVente", "orParEffort"]
+            ].rename(
+                columns={
+                    "name": "Ingrédient",
+                    "rarityLabel": "Rareté",
+                    "stockActuel": "Stock",
+                    "prixVente": "Prix de vente",
+                    "orParEffort": "Or par effort",
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+
+        st.write("**Craft vs brut : bénéfice actuel**")
+        benefice = d.benefice_craft_vs_brut(recettes, ingredients, objets_par_id, taux_revente, stock)
+        benefice["Métier"] = benefice["station"].map(metiers.set_index("station")["name"])
+        st.dataframe(
+            benefice[["Métier", "nom", "valeurBrute", "prixCrafte", "benefice"]].rename(
+                columns={
+                    "nom": "Objet",
+                    "valeurBrute": "Valeur des bruts (stock actuel)",
+                    "prixCrafte": "Prix crafté",
+                    "benefice": "Bénéfice",
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Bénéfice positif = plus worth de crafter maintenant que de vendre les matériaux bruts "
+            "tels quels, vu le stock actuel du marchand."
+        )

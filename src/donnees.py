@@ -8,6 +8,7 @@ import streamlit as st
 
 CHEMIN_CLASSEUR = Path(__file__).resolve().parent.parent / "NEW_MMORPG_Game_Data.xlsx"
 CHEMIN_PROFILS = Path(__file__).resolve().parent / "data" / "profils_equipe.csv"
+CHEMIN_STOCK = Path(__file__).resolve().parent / "data" / "stock_marchand.csv"
 
 COLONNES_PROFILS = ["Pseudo", "Artisanat", "Métiers de récolte", "Rôle"]
 
@@ -192,18 +193,111 @@ def multiplicateur_regional(region_id: str | None, maison: str = MAISON_JOUEUR) 
 
 def niveaux_demande() -> list[dict]:
     """Paliers de demande du marchand royal (Economy Config, royalShop.stockDemand), qui modulent
-    aussi le prix de revente selon le stock actuel du marchand. Pas de données de stock en temps
-    réel dans le classeur, donc à choisir manuellement selon ce qu'on observe en jeu."""
+    le prix de revente des ressources BRUTES selon le stock actuel du marchand pour cet objet (les
+    objets craftés n'y sont pas soumis, ils se vendent toujours au taux plein)."""
     economie = economie_config()
     niveaux, i = [], 0
     while f"royalShop.stockDemand[{i}].multiplier" in economie.index:
         niveaux.append({
+            "upTo": economie.get(f"royalShop.stockDemand[{i}].upTo"),
             "label": economie[f"royalShop.stockDemand[{i}].label"],
             "emoji": economie[f"royalShop.stockDemand[{i}].emoji"],
             "multiplicateur": float(economie[f"royalShop.stockDemand[{i}].multiplier"]),
         })
         i += 1
     return niveaux
+
+
+def palier_pour_stock(stock: float) -> dict:
+    """Palier de demande correspondant à un niveau de stock donné (le dernier palier, sans upTo,
+    sert de catégorie `Surstock` au-delà du dernier seuil)."""
+    for niveau in niveaux_demande():
+        if pd.isna(niveau["upTo"]) or stock <= niveau["upTo"]:
+            return niveau
+    return niveaux_demande()[-1]
+
+
+def multiplicateur_demande_stock(stock_actuel: float | None) -> float:
+    """Multiplicateur de demande pour un objet dont on connaît le stock actuel au marchand ; 1.0
+    (neutre) si le stock est inconnu, faute de relevé."""
+    if stock_actuel is None or pd.isna(stock_actuel):
+        return 1.0
+    return palier_pour_stock(stock_actuel)["multiplicateur"]
+
+
+def parser_stock_marchand(texte: str) -> dict:
+    """Parse un relevé de stock du marchand collé depuis Discord (lignes '* Nom : 123' ou
+    '* Nom : 2 529'), en ignorant les en-têtes de rareté et les valeurs manquantes."""
+    stock = {}
+    for ligne in texte.splitlines():
+        ligne = ligne.strip().lstrip("*").strip()
+        if " : " not in ligne:
+            continue
+        nom, valeur = ligne.rsplit(" : ", 1)
+        valeur = "".join(c for c in valeur if c.isdigit())
+        if valeur:
+            stock[nom.strip()] = int(valeur)
+    return stock
+
+
+def charger_stock_marchand() -> dict:
+    if CHEMIN_STOCK.exists():
+        df = pd.read_csv(CHEMIN_STOCK)
+        return dict(zip(df["nom"], df["quantite"]))
+    return {}
+
+
+def sauvegarder_stock_marchand(stock: dict) -> None:
+    pd.DataFrame(sorted(stock.items()), columns=["nom", "quantite"]).to_csv(CHEMIN_STOCK, index=False)
+
+
+def rentabilite_vente_stock(probabilites: dict, taux_revente: float, stock: dict) -> pd.DataFrame:
+    """Comme rentabilite_vente, mais avec le palier de demande réel de chaque ressource brute
+    (déduit de son stock actuel au marchand) plutôt qu'un palier choisi manuellement."""
+    vendables = objets_recoltables()
+    vendables = vendables[vendables["shopSellable"] == True].copy()
+    vendables["multiplicateurRegional"] = vendables["regionId"].apply(multiplicateur_regional)
+    vendables["stockActuel"] = vendables["name"].map(stock)
+    vendables["multiplicateurDemande"] = vendables["stockActuel"].apply(multiplicateur_demande_stock)
+    vendables["prixVente"] = (
+        vendables["baseValue"] * taux_revente * vendables["multiplicateurRegional"] * vendables["multiplicateurDemande"]
+    )
+    vendables["orParEffort"] = vendables.apply(lambda r: r["prixVente"] * probabilites.get(r["rarity"], 1), axis=1)
+    return vendables.sort_values("orParEffort", ascending=False)
+
+
+def benefice_craft_vs_brut(
+    recettes: pd.DataFrame, ingredients: pd.DataFrame, objets_par_id: pd.DataFrame, taux_revente: float, stock: dict
+) -> pd.DataFrame:
+    """Pour chaque recette vendable, compare la valeur de vente actuelle de ses matériaux bruts
+    (décomposés jusqu'au bout, chacun à son palier de stock réel) à la valeur de l'objet crafté
+    (toujours au taux plein, non soumis au stock). Bénéfice positif = plus worth de crafter
+    maintenant que de vendre les bruts tels quels."""
+    objets_par_nom = objets_par_id.reset_index().set_index("name")
+    lignes = []
+    for _, recette in recettes.iterrows():
+        resultat = objets_par_id.loc[recette["resultItemId"]]
+        if not resultat["shopSellable"]:
+            continue
+        prix_crafte = resultat["baseValue"] * taux_revente * recette["resultQuantity"]
+        composants = composants_bruts_recette(recette["id"], 1, ingredients)
+        valeur_brute = 0.0
+        for nom, qte in composants.items():
+            item = objets_par_nom.loc[nom]
+            valeur_brute += (
+                qte * item["baseValue"] * taux_revente
+                * multiplicateur_regional(item["regionId"])
+                * multiplicateur_demande_stock(stock.get(nom))
+            )
+        lignes.append({
+            "id": recette["id"],
+            "nom": recette["resultName"],
+            "station": recette["station"],
+            "prixCrafte": prix_crafte,
+            "valeurBrute": valeur_brute,
+            "benefice": prix_crafte - valeur_brute,
+        })
+    return pd.DataFrame(lignes).sort_values("benefice", ascending=False)
 
 
 def rentabilite_vente(probabilites: dict, taux_revente: float, multiplicateur_demande: float = 1.0) -> pd.DataFrame:
