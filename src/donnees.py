@@ -17,7 +17,6 @@ COULEUR_COMMUNE = "⚪"
 
 ACTIVITES_RECOLTE = {"fishing": "Pêche", "mining": "Minage", "woodcutting": "Coupe", "farming": "Culture"}
 ORDRE_RARETE = ["COMMON", "RARE", "EPIC", "LEGENDARY"]
-MAISON_JOUEUR = "GREEN"
 
 LIBELLES_SLOTS = {"WEAPON": "Arme", "SHIELD": "Bouclier", "ARMOR": "Armure", "ACCESSORY": "Accessoire"}
 
@@ -179,16 +178,14 @@ def economie_config() -> pd.Series:
     return charger_feuille("Economy Config").set_index("path")["value"]
 
 
-def multiplicateur_regional(region_id: str | None, maison: str = MAISON_JOUEUR) -> float:
-    """Bonus/malus de revente au marchand royal selon l'origine régionale d'une ressource par
-    rapport à sa propre maison (Economy Config, regionalTrade.*) : une ressource étrangère se
-    revend plus cher (x1.2) qu'une ressource de sa propre maison ou universelle."""
+def multiplicateur_regional(vente_etrangere: bool) -> float:
+    """Bonus de revente selon le marchand choisi (Economy Config, regionalTrade.*) : c'est le
+    marchand qui est étranger ou non à sa propre maison, pas l'objet vendu. Vendre à un marchand
+    d'une maison étrangère rapporte x1.2 sur TOUT ce qu'on vend là-bas (bruts et craftés compris,
+    même des objets universels comme du Blé), contre x1 chez son propre marchand."""
     economie = economie_config()
-    if pd.isna(region_id):
-        return float(economie["regionalTrade.neutralMultiplier"])
-    if region_id == maison:
-        return float(economie["regionalTrade.homeMultiplier"])
-    return float(economie["regionalTrade.foreignMultiplier"])
+    chemin = "regionalTrade.foreignMultiplier" if vente_etrangere else "regionalTrade.homeMultiplier"
+    return float(economie[chemin])
 
 
 def niveaux_demande() -> list[dict]:
@@ -251,27 +248,31 @@ def sauvegarder_stock_marchand(stock: dict) -> None:
     pd.DataFrame(sorted(stock.items()), columns=["nom", "quantite"]).to_csv(CHEMIN_STOCK, index=False)
 
 
-def rentabilite_vente_stock(probabilites: dict, taux_revente: float, stock: dict) -> pd.DataFrame:
+def rentabilite_vente_stock(
+    probabilites: dict, taux_revente: float, stock: dict, multiplicateur_region: float = 1.0
+) -> pd.DataFrame:
     """Comme rentabilite_vente, mais avec le palier de demande réel de chaque ressource brute
     (déduit de son stock actuel au marchand) plutôt qu'un palier choisi manuellement."""
     vendables = objets_recoltables()
     vendables = vendables[vendables["shopSellable"] == True].copy()
-    vendables["multiplicateurRegional"] = vendables["regionId"].apply(multiplicateur_regional)
     vendables["stockActuel"] = vendables["name"].map(stock)
     vendables["multiplicateurDemande"] = vendables["stockActuel"].apply(multiplicateur_demande_stock)
-    vendables["prixVente"] = (
-        vendables["baseValue"] * taux_revente * vendables["multiplicateurRegional"] * vendables["multiplicateurDemande"]
-    )
+    vendables["prixVente"] = vendables["baseValue"] * taux_revente * multiplicateur_region * vendables["multiplicateurDemande"]
     vendables["orParEffort"] = vendables.apply(lambda r: r["prixVente"] * probabilites.get(r["rarity"], 1), axis=1)
     return vendables.sort_values("orParEffort", ascending=False)
 
 
 def benefice_craft_vs_brut(
-    recettes: pd.DataFrame, ingredients: pd.DataFrame, objets_par_id: pd.DataFrame, taux_revente: float, stock: dict
+    recettes: pd.DataFrame,
+    ingredients: pd.DataFrame,
+    objets_par_id: pd.DataFrame,
+    taux_revente: float,
+    stock: dict,
+    multiplicateur_region: float = 1.0,
 ) -> pd.DataFrame:
     """Pour chaque recette vendable, compare la valeur de vente actuelle de ses matériaux bruts
     (décomposés jusqu'au bout, chacun à son palier de stock réel) à la valeur de l'objet crafté
-    (toujours au taux plein, non soumis au stock). Bénéfice positif = plus worth de crafter
+    (même bonus régional, mais pas soumis au stock). Bénéfice positif = plus worth de crafter
     maintenant que de vendre les bruts tels quels."""
     objets_par_nom = objets_par_id.reset_index().set_index("name")
     lignes = []
@@ -279,15 +280,13 @@ def benefice_craft_vs_brut(
         resultat = objets_par_id.loc[recette["resultItemId"]]
         if not resultat["shopSellable"]:
             continue
-        prix_crafte = resultat["baseValue"] * taux_revente * recette["resultQuantity"]
+        prix_crafte = resultat["baseValue"] * taux_revente * recette["resultQuantity"] * multiplicateur_region
         composants = composants_bruts_recette(recette["id"], 1, ingredients)
         valeur_brute = 0.0
         for nom, qte in composants.items():
             item = objets_par_nom.loc[nom]
             valeur_brute += (
-                qte * item["baseValue"] * taux_revente
-                * multiplicateur_regional(item["regionId"])
-                * multiplicateur_demande_stock(stock.get(nom))
+                qte * item["baseValue"] * taux_revente * multiplicateur_region * multiplicateur_demande_stock(stock.get(nom))
             )
         lignes.append({
             "id": recette["id"],
@@ -300,14 +299,15 @@ def benefice_craft_vs_brut(
     return pd.DataFrame(lignes).sort_values("benefice", ascending=False)
 
 
-def rentabilite_vente(probabilites: dict, taux_revente: float, multiplicateur_demande: float = 1.0) -> pd.DataFrame:
+def rentabilite_vente(
+    probabilites: dict, taux_revente: float, multiplicateur_region: float = 1.0, multiplicateur_demande: float = 1.0
+) -> pd.DataFrame:
     """Rentabilité de revente au marchand royal des ressources récoltables : prix de vente
     (baseValue x taux de revente x bonus régional x demande actuelle) pondéré par la probabilité
     de rareté, pour comparer l'or gagné par effort de récolte entre objets communs et rares."""
     vendables = objets_recoltables()
     vendables = vendables[vendables["shopSellable"] == True].copy()
-    vendables["multiplicateurRegional"] = vendables["regionId"].apply(multiplicateur_regional)
-    vendables["prixVente"] = vendables["baseValue"] * taux_revente * vendables["multiplicateurRegional"] * multiplicateur_demande
+    vendables["prixVente"] = vendables["baseValue"] * taux_revente * multiplicateur_region * multiplicateur_demande
     vendables["orParEffort"] = vendables.apply(lambda r: r["prixVente"] * probabilites.get(r["rarity"], 1), axis=1)
     return vendables.sort_values("orParEffort", ascending=False)
 
@@ -318,21 +318,21 @@ def rentabilite_vente_craftee(
     probabilites: dict,
     taux_revente: float,
     objets_par_id: pd.DataFrame,
+    multiplicateur_region: float = 1.0,
     multiplicateur_demande: float = 1.0,
 ) -> pd.DataFrame:
     """Rentabilité de revente au marchand royal des objets craftés : prix de vente (baseValue x
     taux de revente x bonus régional x demande actuelle) divisé par l'effort de récolte nécessaire
     à leur fabrication (récursif, jusqu'aux matériaux bruts), pour comparer avec la rentabilité des
-    ressources brutes. Les objets craftés n'ont pas de région propre (bonus toujours neutre)."""
+    ressources brutes. Le bonus régional dépend du marchand choisi, pas de l'objet : il s'applique
+    donc aussi aux objets craftés."""
     craftes = recettes.copy()
     craftes["shopSellable"] = craftes["resultItemId"].map(objets_par_id["shopSellable"])
     craftes["baseValue"] = craftes["resultItemId"].map(objets_par_id["baseValue"])
     craftes["rarityLabel"] = craftes["resultItemId"].map(objets_par_id["rarityLabel"])
-    craftes["regionId"] = craftes["resultItemId"].map(objets_par_id["regionId"])
     craftes = craftes[craftes["shopSellable"] == True].copy()
-    craftes["multiplicateurRegional"] = craftes["regionId"].apply(multiplicateur_regional)
     craftes["prixVente"] = (
-        craftes["baseValue"] * taux_revente * craftes["resultQuantity"] * craftes["multiplicateurRegional"] * multiplicateur_demande
+        craftes["baseValue"] * taux_revente * craftes["resultQuantity"] * multiplicateur_region * multiplicateur_demande
     )
     craftes["effort"] = craftes["id"].apply(lambda rid: effort_recette(rid, ingredients, probabilites))
     craftes["orParEffort"] = craftes.apply(lambda r: efficacite_xp(r["prixVente"], r["effort"]), axis=1)
