@@ -358,15 +358,16 @@ with onglet_revente:
 
     options_marchand = ["🏠 Notre marchand (maison verte)", "🌍 Marchand d'une maison étrangère"]
     choix_marchand = st.selectbox("Marchand où tu vends", options_marchand)
-    multiplicateur_region = d.multiplicateur_regional(choix_marchand == options_marchand[1])
+    vente_etrangere = choix_marchand == options_marchand[1]
 
     st.write("**Comment marche l'économie**")
     st.markdown(
         f"- Le marchand royal rachète tout objet vendable à **{taux_revente:.0%}** de sa valeur de base, "
         "modulé par deux bonus multiplicatifs : la demande actuelle du marchand (x0.8 à x1.1 selon son "
         "stock, choisie ci-dessus faute de stock en temps réel dans ces données) et le marchand choisi "
-        "(**x1.2 chez une maison étrangère**, sur tout ce que tu vends là-bas y compris tes objets "
-        "communs/universels, x1 chez ton propre marchand).\n"
+        "(**x1.2 chez une maison étrangère** pour un objet propre à une région, x1 chez ton propre "
+        "marchand ; un objet universel/commun à toutes les maisons comme du Blé ou du Minerai de fer "
+        "reste toujours à x1, peu importe le marchand).\n"
         f"- Acheter au marchand royal coûte **{taux_achat:.0%}** de la valeur de base, modulé par le stock "
         "actuel (forte demande = plus cher, surstock = moins cher).\n"
         f"- Le marché entre joueurs prélève une **taxe de {taux_taxe:.0%}** sur chaque vente, mais permet "
@@ -378,7 +379,7 @@ with onglet_revente:
     )
 
     st.write("**Ressources brutes**")
-    rentabilite = d.rentabilite_vente(probabilites_rarete, taux_revente, multiplicateur_region, multiplicateur_demande)
+    rentabilite = d.rentabilite_vente(probabilites_rarete, taux_revente, vente_etrangere, multiplicateur_demande)
     rentabilite["Provenance"] = rentabilite["regionId"].apply(d.couleur_provenance)
 
     filtre_activite = st.selectbox("Filtrer par activité", ["Toutes"] + list(d.ACTIVITES_RECOLTE.values()))
@@ -402,7 +403,7 @@ with onglet_revente:
     st.write("**Objets craftés**")
     valeur_par_nom = d.objets().set_index("name")["baseValue"]
     rentabilite_craftee = d.rentabilite_vente_craftee(
-        recettes, ingredients, probabilites_rarete, taux_revente, objets_par_id, multiplicateur_region, multiplicateur_demande
+        recettes, ingredients, probabilites_rarete, taux_revente, objets_par_id, multiplicateur_demande
     )
     rentabilite_craftee["Métier"] = rentabilite_craftee["station"].map(metiers.set_index("station")["name"])
     rentabilite_craftee["coutBrut"] = rentabilite_craftee["id"].apply(
@@ -485,8 +486,8 @@ with onglet_marche:
     st.caption(
         f"Marchand sélectionné dans l'onglet Revente : **{choix_marchand}**. Colle un relevé de stock "
         "du marchand royal (format Discord, lignes '* Nom : quantité') pour calculer les prix de vente "
-        "réels du moment. Les objets craftés ne sont pas soumis au stock (toujours au taux plein), mais "
-        "profitent quand même du bonus de marchand étranger comme les bruts."
+        "réels du moment. Les objets craftés ne sont pas soumis au stock (toujours au taux plein) ni au "
+        "bonus de marchand étranger (ils n'ont pas de région propre, toujours neutres)."
     )
     nouveau_releve = st.text_area("Relevé de stock à coller", height=150)
     if st.button("Mettre à jour le stock"):
@@ -502,12 +503,13 @@ with onglet_marche:
         st.info("Aucun relevé de stock enregistré pour l'instant.")
     else:
         st.write(f"**Ressources brutes encore worth vendre** (stock connu pour {len(stock)} objets)")
-        rentabilite_stock = d.rentabilite_vente_stock(probabilites_rarete, taux_revente, stock, multiplicateur_region)
+        rentabilite_stock = d.rentabilite_vente_stock(probabilites_rarete, taux_revente, stock, vente_etrangere)
         rentabilite_stock["Provenance"] = rentabilite_stock["regionId"].apply(d.couleur_provenance)
+        rentabilite_stock["Bonus région"] = rentabilite_stock["multiplicateurRegional"].apply(lambda m: f"x{m:g}")
         rentabilite_stock["Palier"] = rentabilite_stock["multiplicateurDemande"].apply(lambda m: f"x{m:g}")
         st.dataframe(
             rentabilite_stock[
-                ["Provenance", "name", "rarityLabel", "stockActuel", "Palier", "prixVente", "orParEffort"]
+                ["Provenance", "name", "rarityLabel", "stockActuel", "Bonus région", "Palier", "prixVente", "orParEffort"]
             ].rename(
                 columns={
                     "name": "Ingrédient",
@@ -522,7 +524,7 @@ with onglet_marche:
         )
 
         st.write("**Craft vs brut : bénéfice actuel**")
-        benefice = d.benefice_craft_vs_brut(recettes, ingredients, objets_par_id, taux_revente, stock, multiplicateur_region)
+        benefice = d.benefice_craft_vs_brut(recettes, ingredients, objets_par_id, taux_revente, stock, vente_etrangere)
         benefice["Métier"] = benefice["station"].map(metiers.set_index("station")["name"])
         st.dataframe(
             benefice[["Métier", "nom", "valeurBrute", "prixCrafte", "benefice"]].rename(

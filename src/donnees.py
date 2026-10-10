@@ -178,12 +178,15 @@ def economie_config() -> pd.Series:
     return charger_feuille("Economy Config").set_index("path")["value"]
 
 
-def multiplicateur_regional(vente_etrangere: bool) -> float:
-    """Bonus de revente selon le marchand choisi (Economy Config, regionalTrade.*) : c'est le
-    marchand qui est étranger ou non à sa propre maison, pas l'objet vendu. Vendre à un marchand
-    d'une maison étrangère rapporte x1.2 sur TOUT ce qu'on vend là-bas (bruts et craftés compris,
-    même des objets universels comme du Blé), contre x1 chez son propre marchand."""
+def multiplicateur_regional(region_id: str | None, vente_etrangere: bool) -> float:
+    """Bonus de revente selon le marchand choisi (Economy Config, regionalTrade.*). Un objet
+    universel (sans région propre, ex: Carpe, Blé, Minerai de fer, et TOUS les objets craftés) est
+    commun à toutes les maisons et reste toujours neutre (x1), peu importe le marchand. Un objet
+    propre à une région (ex: Tranche-verte, native GREEN) vaut x1 chez son propre marchand, x1.2
+    chez un marchand d'une maison étrangère."""
     economie = economie_config()
+    if pd.isna(region_id):
+        return float(economie["regionalTrade.neutralMultiplier"])
     chemin = "regionalTrade.foreignMultiplier" if vente_etrangere else "regionalTrade.homeMultiplier"
     return float(economie[chemin])
 
@@ -248,16 +251,17 @@ def sauvegarder_stock_marchand(stock: dict) -> None:
     pd.DataFrame(sorted(stock.items()), columns=["nom", "quantite"]).to_csv(CHEMIN_STOCK, index=False)
 
 
-def rentabilite_vente_stock(
-    probabilites: dict, taux_revente: float, stock: dict, multiplicateur_region: float = 1.0
-) -> pd.DataFrame:
+def rentabilite_vente_stock(probabilites: dict, taux_revente: float, stock: dict, vente_etrangere: bool = False) -> pd.DataFrame:
     """Comme rentabilite_vente, mais avec le palier de demande réel de chaque ressource brute
     (déduit de son stock actuel au marchand) plutôt qu'un palier choisi manuellement."""
     vendables = objets_recoltables()
     vendables = vendables[vendables["shopSellable"] == True].copy()
+    vendables["multiplicateurRegional"] = vendables["regionId"].apply(lambda r: multiplicateur_regional(r, vente_etrangere))
     vendables["stockActuel"] = vendables["name"].map(stock)
     vendables["multiplicateurDemande"] = vendables["stockActuel"].apply(multiplicateur_demande_stock)
-    vendables["prixVente"] = vendables["baseValue"] * taux_revente * multiplicateur_region * vendables["multiplicateurDemande"]
+    vendables["prixVente"] = (
+        vendables["baseValue"] * taux_revente * vendables["multiplicateurRegional"] * vendables["multiplicateurDemande"]
+    )
     vendables["orParEffort"] = vendables.apply(lambda r: r["prixVente"] * probabilites.get(r["rarity"], 1), axis=1)
     return vendables.sort_values("orParEffort", ascending=False)
 
@@ -268,25 +272,28 @@ def benefice_craft_vs_brut(
     objets_par_id: pd.DataFrame,
     taux_revente: float,
     stock: dict,
-    multiplicateur_region: float = 1.0,
+    vente_etrangere: bool = False,
 ) -> pd.DataFrame:
     """Pour chaque recette vendable, compare la valeur de vente actuelle de ses matériaux bruts
-    (décomposés jusqu'au bout, chacun à son palier de stock réel) à la valeur de l'objet crafté
-    (même bonus régional, mais pas soumis au stock). Bénéfice positif = plus worth de crafter
-    maintenant que de vendre les bruts tels quels."""
+    (décomposés jusqu'au bout, chacun à son palier de stock réel et son propre bonus régional) à
+    la valeur de l'objet crafté (toujours neutre, un objet crafté n'ayant pas de région propre, et
+    pas soumis au stock). Bénéfice positif = plus worth de crafter maintenant que de vendre les
+    bruts tels quels."""
     objets_par_nom = objets_par_id.reset_index().set_index("name")
     lignes = []
     for _, recette in recettes.iterrows():
         resultat = objets_par_id.loc[recette["resultItemId"]]
         if not resultat["shopSellable"]:
             continue
-        prix_crafte = resultat["baseValue"] * taux_revente * recette["resultQuantity"] * multiplicateur_region
+        prix_crafte = resultat["baseValue"] * taux_revente * recette["resultQuantity"] * multiplicateur_regional(None, False)
         composants = composants_bruts_recette(recette["id"], 1, ingredients)
         valeur_brute = 0.0
         for nom, qte in composants.items():
             item = objets_par_nom.loc[nom]
             valeur_brute += (
-                qte * item["baseValue"] * taux_revente * multiplicateur_region * multiplicateur_demande_stock(stock.get(nom))
+                qte * item["baseValue"] * taux_revente
+                * multiplicateur_regional(item["regionId"], vente_etrangere)
+                * multiplicateur_demande_stock(stock.get(nom))
             )
         lignes.append({
             "id": recette["id"],
@@ -300,14 +307,17 @@ def benefice_craft_vs_brut(
 
 
 def rentabilite_vente(
-    probabilites: dict, taux_revente: float, multiplicateur_region: float = 1.0, multiplicateur_demande: float = 1.0
+    probabilites: dict, taux_revente: float, vente_etrangere: bool = False, multiplicateur_demande: float = 1.0
 ) -> pd.DataFrame:
     """Rentabilité de revente au marchand royal des ressources récoltables : prix de vente
     (baseValue x taux de revente x bonus régional x demande actuelle) pondéré par la probabilité
-    de rareté, pour comparer l'or gagné par effort de récolte entre objets communs et rares."""
+    de rareté, pour comparer l'or gagné par effort de récolte entre objets communs et rares. Un
+    objet universel (sans région propre) ne profite jamais du bonus régional, peu importe le
+    marchand choisi."""
     vendables = objets_recoltables()
     vendables = vendables[vendables["shopSellable"] == True].copy()
-    vendables["prixVente"] = vendables["baseValue"] * taux_revente * multiplicateur_region * multiplicateur_demande
+    vendables["multiplicateurRegional"] = vendables["regionId"].apply(lambda r: multiplicateur_regional(r, vente_etrangere))
+    vendables["prixVente"] = vendables["baseValue"] * taux_revente * vendables["multiplicateurRegional"] * multiplicateur_demande
     vendables["orParEffort"] = vendables.apply(lambda r: r["prixVente"] * probabilites.get(r["rarity"], 1), axis=1)
     return vendables.sort_values("orParEffort", ascending=False)
 
@@ -318,21 +328,20 @@ def rentabilite_vente_craftee(
     probabilites: dict,
     taux_revente: float,
     objets_par_id: pd.DataFrame,
-    multiplicateur_region: float = 1.0,
     multiplicateur_demande: float = 1.0,
 ) -> pd.DataFrame:
     """Rentabilité de revente au marchand royal des objets craftés : prix de vente (baseValue x
-    taux de revente x bonus régional x demande actuelle) divisé par l'effort de récolte nécessaire
-    à leur fabrication (récursif, jusqu'aux matériaux bruts), pour comparer avec la rentabilité des
-    ressources brutes. Le bonus régional dépend du marchand choisi, pas de l'objet : il s'applique
-    donc aussi aux objets craftés."""
+    taux de revente x demande actuelle) divisé par l'effort de récolte nécessaire à leur
+    fabrication (récursif, jusqu'aux matériaux bruts), pour comparer avec la rentabilité des
+    ressources brutes. Les objets craftés n'ont pas de région propre : toujours neutres (x1) face
+    au bonus régional, peu importe le marchand choisi."""
     craftes = recettes.copy()
     craftes["shopSellable"] = craftes["resultItemId"].map(objets_par_id["shopSellable"])
     craftes["baseValue"] = craftes["resultItemId"].map(objets_par_id["baseValue"])
     craftes["rarityLabel"] = craftes["resultItemId"].map(objets_par_id["rarityLabel"])
     craftes = craftes[craftes["shopSellable"] == True].copy()
     craftes["prixVente"] = (
-        craftes["baseValue"] * taux_revente * craftes["resultQuantity"] * multiplicateur_region * multiplicateur_demande
+        craftes["baseValue"] * taux_revente * craftes["resultQuantity"] * multiplicateur_regional(None, False) * multiplicateur_demande
     )
     craftes["effort"] = craftes["id"].apply(lambda rid: effort_recette(rid, ingredients, probabilites))
     craftes["orParEffort"] = craftes.apply(lambda r: efficacite_xp(r["prixVente"], r["effort"]), axis=1)
